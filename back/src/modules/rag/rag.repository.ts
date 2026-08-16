@@ -35,4 +35,8 @@ export class RagRepository {
 
     return results.map(row => this.em.map(Document, row));
   }
+
+  async countDocuments(): Promise<number> {
+    return await this.em.count(Document);
+  }
 }
