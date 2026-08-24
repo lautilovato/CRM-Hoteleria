@@ -1,5 +1,6 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { RagService } from './rag.service';
+import { IngestDataDto, AskQuestionDto } from './dto/rag.dto';
 
 @Controller('rag')
 export class RagController {
@@ -7,13 +8,9 @@ export class RagController {
 
   @Post('ingest')
   @HttpCode(HttpStatus.OK)
-  async ingestData(@Body('text') text: string) {
-    if (!text) {
-      throw new BadRequestException('El campo "text" es obligatorio en el body');
-    }
-
-    await this.ragService.ingestDocument(text);
-    
+  async ingestData(@Body() ingestDataDto: IngestDataDto) {
+    await this.ragService.ingestDocument(ingestDataDto.text);
+        
     return { 
       message: 'Documento particionado, vectorizado y guardado con éxito.',
       status: 'success'
@@ -22,14 +19,11 @@ export class RagController {
 
   @Post('ask')
   @HttpCode(HttpStatus.OK)
-  async askQuestion(@Body('question') question: string) {
-    if (!question) {
-      throw new BadRequestException('El campo "question" es obligatorio en el body');
-    }
-    const answer = await this.ragService.askQuestion(question);
+  async askQuestion(@Body() askQuestionDto: AskQuestionDto) {
+    const answer = await this.ragService.askQuestion(askQuestionDto.question);
     
     return { 
-      question,
+      question: askQuestionDto.question,
       answer,
     };
   }

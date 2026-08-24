@@ -11,7 +11,7 @@ export class RagService {
     private readonly ragRepository: RagRepository,
     private readonly configService: ConfigService,
   ) {
-    // Inicializamos el SDK de Gemini
+    
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
 
     if (!apiKey) {
@@ -24,8 +24,7 @@ export class RagService {
   async ingestDocument(rawText: string): Promise<void> {
     const chunks = this.chunkText(rawText, 1000, 200);
 
-    // Usamos el modelo específico de embeddings de Gemini
-    const embeddingModel = this.genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const embeddingModel = this.genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
 
     for (const chunk of chunks) {
       const result = await embeddingModel.embedContent(chunk);
@@ -36,19 +35,17 @@ export class RagService {
   }
 
   async askQuestion(userQuestion: string): Promise<string> {
-    // 1. Vectorizar la pregunta
-    const embeddingModel = this.genAI.getGenerativeModel({ model: 'text-embedding-004' });
+
+    const embeddingModel = this.genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
     const result = await embeddingModel.embedContent(userQuestion);
     const questionVector = result.embedding.values;
 
-    // 2. Buscar similitudes en la BD
     const similarDocs = await this.ragRepository.findSimilar(questionVector, 3);
     const contextText = similarDocs.map(doc => doc.content).join('\n\n---\n\n');
 
-    // 3. Generar la respuesta usando el modelo de texto de Gemini (ej. gemini-1.5-flash es gratis y rapidísimo)
     const chatModel = this.genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
-      systemInstruction: `Eres un asistente experto. Responde a la pregunta utilizando ÚNICAMENTE la siguiente información. Si no está en el contexto, di "No tengo suficiente información".\n\nCONTEXTO:\n${contextText}`
+      model: 'gemini-flash-lite-latest',
+      systemInstruction: `Eres Chamber, el asistente virtual y conserje digital del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. Si te saludan, preséntate como Chamber. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción".\n\nCONTEXTO:\n${contextText}`    
     });
 
     const chatResponse = await chatModel.generateContent(userQuestion);

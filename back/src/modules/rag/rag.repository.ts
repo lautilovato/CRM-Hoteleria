@@ -5,13 +5,12 @@ import { Document } from '../../infrastructure/database/entities/Document.entity
 export class RagRepository {
 
   constructor(private readonly em: EntityManager) {}
-  /**
-   * Guarda un fragmento de documento en la base de datos.
-   */
-  async saveDocumentChunk(content: string, embedding: number[]): Promise<Document> {
+  async saveDocumentChunk(text: string, embeddingVector: number[]): Promise<Document> {
+    const formattedEmbedding = `[${embeddingVector.join(',')}]`;
+    
     const document = this.em.create(Document, {
-      content,
-      embedding,
+      content: text,
+      embedding: formattedEmbedding as any, 
     });
     
     this.em.persist(document); 

@@ -10,6 +10,6 @@ export class Document extends CustomBaseEntity {
   @Property({ type: 'text' })
   content!: string;
 
-  @Property({ type: 'vector', columnType: 'vector(768)' })
+  @Property({ type: 'vector', columnType: 'vector(3072)' })
   embedding!: number[];
 }  
