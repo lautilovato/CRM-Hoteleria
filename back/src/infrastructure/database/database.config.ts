@@ -34,4 +34,5 @@ export default defineConfig({
   
   debug: process.env.NODE_ENV === 'dev',
   timezone: 'UTC',
+  allowGlobalContext: true,
 });
