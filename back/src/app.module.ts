@@ -5,6 +5,8 @@ import { TelegrafModule } from 'nestjs-telegraf';
 import databaseConfig from './infrastructure/database/database.config';
 import { RagModule } from './modules/rag/rag.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -22,5 +24,7 @@ import { TelegramModule } from './modules/telegram/telegram.module';
       inject: [ConfigService],
     }),
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
