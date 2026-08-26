@@ -8,7 +8,7 @@ export class TelegramUpdate {
 
   @Start()
   async start(@Ctx() ctx: Context) {
-    await ctx.reply('¡Hola! Soy Chamber, tu asistente virtual. ¿Qué dudas tienes?');
+    await ctx.reply('¡Hola! Soy Chamber, tu asistente virtual. ¿En qué puedo ayudarte?');
   }
 
   @On('text')
