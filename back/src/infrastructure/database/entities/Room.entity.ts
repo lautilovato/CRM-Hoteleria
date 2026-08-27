@@ -1,0 +1,30 @@
+import { Collection } from '@mikro-orm/core'; 
+import { Entity, PrimaryKey, Property, OneToMany, ManyToOne, Enum } from '@mikro-orm/decorators/legacy';
+import { v4 } from 'uuid';
+import { RoomCategory } from './RoomCategory.entity';
+import { CustomBaseEntity } from './CustomBase.entity';
+import { Reservation } from './Reservation.entity';
+
+export enum RoomStatus {
+  ACTIVE = 'ACTIVE',
+  MAINTENANCE = 'MAINTENANCE',
+  INACTIVE = 'INACTIVE',
+}
+
+@Entity({ tableName: 'rooms' })
+export class Room extends CustomBaseEntity {
+  @PrimaryKey({ type: 'uuid' })
+  id: string = v4();
+
+  @ManyToOne(() => RoomCategory)
+  category!: RoomCategory;
+
+  @Property({ type: 'varchar', unique: true })
+  roomNumber!: string;
+
+  @Enum(() => RoomStatus)
+  status: RoomStatus = RoomStatus.ACTIVE;
+
+  @OneToMany(() => Reservation, reservation => reservation.room)
+  reservations = new Collection<Reservation>(this);
+}
