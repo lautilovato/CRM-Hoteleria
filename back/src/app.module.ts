@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
+import { TelegrafModule } from 'nestjs-telegraf';
 import databaseConfig from './infrastructure/database/database.config';
 import { RagModule } from './modules/rag/rag.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -11,6 +15,16 @@ import { RagModule } from './modules/rag/rag.module';
     }),
     MikroOrmModule.forRoot(databaseConfig),
     RagModule,
+    TelegramModule,
+    TelegrafModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        token: configService.getOrThrow<string>('TELEGRAM_BOT_TOKEN'),
+      }),
+      inject: [ConfigService],
+    }),
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
