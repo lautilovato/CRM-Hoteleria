@@ -34,22 +34,25 @@ export class RagService {
     }
   }
 
-  async askQuestion(userQuestion: string, reservaActiva: any = null, history: any[] = []): Promise<any> {
+  async askQuestion(userQuestion: string, reservaActiva: any = null, history: any[] = [], ultimaCompletada: any = null): Promise<any> {
     const embeddingModel = this.genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
     const result = await embeddingModel.embedContent(userQuestion);
     
     const similarDocs = await this.ragRepository.findSimilar(result.embedding.values, 3);
     const contextText = similarDocs.map(doc => doc.content).join('\n\n---\n\n');
 
-    const contextoReserva = reservaActiva
-      ? `\n[FALTAN DATOS DE RESERVA: CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Tipo=${reservaActiva.roomType || 'No'}]`
-      : '';
+    let contextoReserva = '';
+    if (reservaActiva) {
+      contextoReserva = `\n[ESTADO ACTUAL: Faltan datos. CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Tipo=${reservaActiva.roomType || 'No'}]`;
+    } else if (ultimaCompletada) {
+      contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue procesada. TIENES ESTRICTAMENTE PROHIBIDO volver a llamar a la herramienta 'procesar_reserva' para estos mismos datos. Si el usuario agradece, solo responde cordialmente.]`;
+    }
 
     const historyText = history.map(msg => `${msg.role === 'USER' ? 'Usuario' : 'Chamber'}: ${msg.content}`).join('\n');
 
     const chatModel = this.genAI.getGenerativeModel({ 
       model: 'gemini-flash-lite-latest',
-      systemInstruction: `Eres Chamber, el asistente virtual y conserje digital del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. SOLO si te saludan, preséntate como Chamber. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción".\n\nREGLA PARA RESERVAS: Si el usuario quiere reservar y faltan datos (fecha de llegada, fecha de salida o tipo de habitación), pregúntalos sutilmente integrándolos en la charla. Cuando ya tengas los 3 datos identificados, utiliza la herramienta 'procesar_reserva'.\n\nCONTEXTO:\n${contextText}`,
+      systemInstruction: `Eres Chamber, el asistente virtual y conserje digital del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. SOLO si te saludan, preséntate como Chamber. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nREGLA PARA RESERVAS: Si el usuario quiere reservar y faltan datos (fecha de llegada, fecha de salida o cantidad de personas), pregúntalos sutilmente integrándolos en la charla. Cuando ya tengas los 3 datos identificados, utiliza la herramienta 'procesar_reserva'.\n\nCONTEXTO:\n${contextText}`,
       tools: [{
         functionDeclarations: [{
           name: 'procesar_reserva',
@@ -57,17 +60,17 @@ export class RagService {
           parameters: {
             type: SchemaType.OBJECT,
             properties: {
-              checkIn: { type: SchemaType.STRING, description: 'Fecha de entrada limpia. Ej: "27 de noviembre"' },
-              checkOut: { type: SchemaType.STRING, description: 'Fecha de salida limpia. Ej: "08 de diciembre"' },
-              tipoHabitacion: { type: SchemaType.STRING, description: 'Tipo de habitación. Ej: "Suite"' }
+              checkIn: { type: SchemaType.STRING, description: 'Fecha de entrada en formato YYYY-MM-DD.' },
+              checkOut: { type: SchemaType.STRING, description: 'Fecha de salida en formato YYYY-MM-DD.' },
+              capacidad: { type: SchemaType.INTEGER, description: 'Cantidad de personas. Ej: 2' }
             },
-            required: ['checkIn', 'checkOut', 'tipoHabitacion']
+            required: ['checkIn', 'checkOut', 'capacidad']
           }
         }]
       }]
     });
 
-    const prompt = `Historial de la conversación:\n${historyText}\n\nContexto del hotel:\n${contextoReserva}\n\nMensaje del usuario: ${userQuestion}`;
+    const prompt = `Historial de la conversación:\n${historyText}\n\nContexto del sistema:\n${contextoReserva}\n\nMensaje del usuario: ${userQuestion}`;
     
     const chatResponse = await chatModel.generateContent(prompt);
     

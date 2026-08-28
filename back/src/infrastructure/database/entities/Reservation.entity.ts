@@ -30,6 +30,6 @@ export class Reservation extends CustomBaseEntity {
   @Enum(() => ReservationStatus)
   status: ReservationStatus = ReservationStatus.PENDING_PAYMENT;
 
-  @Property({ type: 'decimal', precision: 5, scale: 2 })
+  @Property({ type: 'decimal', precision: 12, scale: 2 })
   totalAmount!: number;
 }

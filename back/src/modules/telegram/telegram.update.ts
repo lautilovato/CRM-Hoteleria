@@ -4,6 +4,9 @@ import { EntityManager } from '@mikro-orm/core';
 import { RagService } from '../rag/rag.service';
 import { ChatMessage, MessageRole } from '../../infrastructure/database/entities/ChatMessage.entity';
 import { BookingProcess } from '../../infrastructure/database/entities/BookingProcess.entity';
+import { Room } from '../../infrastructure/database/entities/Room.entity';
+import { Reservation } from '../../infrastructure/database/entities/Reservation.entity';
+
 
 @Update()
 export class TelegramUpdate {
@@ -25,6 +28,12 @@ export class TelegramUpdate {
 
     try {
       const activeBooking = await this.em.findOne(BookingProcess, { telegramUserId, step: 'IN_PROGRESS' });
+      
+      const lastCompletedBooking = await this.em.findOne(
+        BookingProcess, 
+        { telegramUserId, step: 'COMPLETED' }, 
+        { orderBy: { createdAt: 'DESC' } }
+      );
 
       const previousMessages = await this.em.find(
         ChatMessage,
@@ -36,10 +45,10 @@ export class TelegramUpdate {
       const userMessage = this.em.create(ChatMessage, { telegramUserId, role: MessageRole.USER, content: text });
       this.em.persist(userMessage);
 
-      const aiResponse = await this.ragService.askQuestion(text, activeBooking, history);
+      const aiResponse = await this.ragService.askQuestion(text, activeBooking, history, lastCompletedBooking);
 
       if (aiResponse.accion === 'RESERVAR') {
-        const { checkIn, checkOut, tipoHabitacion } = aiResponse.datos;
+        const { checkIn, checkOut, capacidad, tipoHabitacion } = aiResponse.datos;
 
         let booking = activeBooking || this.em.create(BookingProcess, { telegramUserId, step: 'IN_PROGRESS' });
         booking.checkIn = checkIn;
@@ -47,8 +56,35 @@ export class TelegramUpdate {
         booking.roomType = tipoHabitacion;
         booking.step = 'COMPLETED';
         this.em.persist(booking);
+        
+        await ctx.sendChatAction('typing');
 
-        const botReply = `¡Perfecto! Ya tengo todos tus datos: una ${tipoHabitacion} del ${checkIn} al ${checkOut}. Dame un segundo que consulto la disponibilidad en el sistema...`;
+        const overlappingReservations = await this.em.find(Reservation, {
+          $and: [
+            { checkIn: { $lt: new Date(checkOut) } },
+            { checkOut: { $gt: new Date(checkIn) } }
+          ]
+        }, { populate: ['room'] });
+
+        const reservedRoomIds = overlappingReservations.map(r => r.room.id);
+
+        const availableRooms = await this.em.find(Room, {
+          category: { capacity: { $gte: capacidad } }, 
+          ...(reservedRoomIds.length > 0 ? { id: { $nin: reservedRoomIds } } : {})
+        }, { populate: ['category'] });
+
+        let botReply = '';
+
+        if (availableRooms.length > 0) {
+          const roomFound = availableRooms[0];
+          const price = roomFound.category.basePrice;
+          
+          botReply = `¡Buenas noticias! Tenemos disponibilidad en nuestra ${roomFound.category.name} del ${checkIn} al ${checkOut}.\n\n` +
+                     `El valor base es de $${price} por noche.\n\n` +
+                     `¿Te gustaría que confirmemos la reserva?`;
+        } else {
+          botReply = `Lamentablemente no nos quedan habitaciones para ${capacidad} personas disponibles del ${checkIn} al ${checkOut}. ¿Buscamos en otras fechas?`;
+        }
 
         const botMessage = this.em.create(ChatMessage, { telegramUserId, role: MessageRole.BOT, content: botReply });
         this.em.persist(botMessage);
