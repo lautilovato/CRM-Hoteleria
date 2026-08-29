@@ -11,13 +11,8 @@ export class RagService {
     private readonly ragRepository: RagRepository,
     private readonly configService: ConfigService,
   ) {
-    
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
-
-    if (!apiKey) {
-      throw new Error('The GEMINI_API_KEY variable needs to be configured in the .env file.');
-    }
-
+    if (!apiKey) throw new Error('Falta GEMINI_API_KEY');
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
@@ -43,30 +38,36 @@ export class RagService {
 
     let contextoReserva = '';
     if (reservaActiva) {
-      contextoReserva = `\n[ESTADO ACTUAL: Faltan datos. CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Tipo=${reservaActiva.roomType || 'No'}]`;
+      contextoReserva = `\n[ESTADO ACTUAL: Faltan datos. CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Capacidad=${reservaActiva.roomType || 'No'}]`;
     } else if (ultimaCompletada) {
-      contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue procesada. TIENES ESTRICTAMENTE PROHIBIDO volver a llamar a la herramienta 'procesar_reserva' para estos mismos datos. Si el usuario agradece, solo responde cordialmente.]`;
+      contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue confirmada. PROHIBIDO usar las herramientas para estos datos.]`;
     }
 
     const historyText = history.map(msg => `${msg.role === 'USER' ? 'Usuario' : 'Chamber'}: ${msg.content}`).join('\n');
 
     const chatModel = this.genAI.getGenerativeModel({ 
       model: 'gemini-flash-lite-latest',
-      systemInstruction: `Eres Chamber, el asistente virtual y conserje digital del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. SOLO si te saludan, preséntate como Chamber. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nREGLA PARA RESERVAS: Si el usuario quiere reservar y faltan datos (fecha de llegada, fecha de salida o cantidad de personas), pregúntalos sutilmente integrándolos en la charla. Cuando ya tengas los 3 datos identificados, utiliza la herramienta 'procesar_reserva'.\n\nCONTEXTO:\n${contextText}`,
+      systemInstruction: `Eres Chamber, el asistente virtual y conserje digital del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. SOLO si te saludan, preséntate como Chamber. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nREGLA PARA RESERVAS: Si faltan datos, pregúntalos. Cuando tengas los 3 (entrada, salida, capacidad), usa 'procesar_reserva'. Si ya le ofreciste una habitación y el usuario acepta o confirma explícitamente, usa 'confirmar_reserva'.\n\nCONTEXTO:\n${contextText}`,
       tools: [{
-        functionDeclarations: [{
-          name: 'procesar_reserva',
-          description: 'Llama a esta función ÚNICAMENTE cuando ya tengas identificados los 3 datos limpios del cliente.',
-          parameters: {
-            type: SchemaType.OBJECT,
-            properties: {
-              checkIn: { type: SchemaType.STRING, description: 'Fecha de entrada en formato YYYY-MM-DD.' },
-              checkOut: { type: SchemaType.STRING, description: 'Fecha de salida en formato YYYY-MM-DD.' },
-              capacidad: { type: SchemaType.INTEGER, description: 'Cantidad de personas. Ej: 2' }
-            },
-            required: ['checkIn', 'checkOut', 'capacidad']
+        functionDeclarations: [
+          {
+            name: 'procesar_reserva',
+            description: 'Llama a esta función para buscar disponibilidad.',
+            parameters: {
+              type: SchemaType.OBJECT,
+              properties: {
+                checkIn: { type: SchemaType.STRING, description: 'Fecha entrada YYYY-MM-DD.' },
+                checkOut: { type: SchemaType.STRING, description: 'Fecha salida YYYY-MM-DD.' },
+                capacidad: { type: SchemaType.INTEGER, description: 'Cantidad de personas.' }
+              },
+              required: ['checkIn', 'checkOut', 'capacidad']
+            }
+          },
+          {
+            name: 'confirmar_reserva',
+            description: 'Llama a esta función ÚNICAMENTE cuando el usuario acepte confirmar la reserva previamente ofrecida.',
           }
-        }]
+        ]
       }]
     });
 
@@ -74,9 +75,13 @@ export class RagService {
     
     const chatResponse = await chatModel.generateContent(prompt);
     
-    const functionCall = chatResponse.response.functionCalls()?.[0];
-    if (functionCall && functionCall.name === 'procesar_reserva') {
-      return { accion: 'RESERVAR', datos: functionCall.args };
+    const [functionCall] = chatResponse.response.functionCalls() || [];
+
+    if (functionCall) {
+      const { name, args } = functionCall; 
+      
+      if (name === 'procesar_reserva') return { accion: 'BUSCAR_DISPONIBILIDAD', datos: args };
+      if (name === 'confirmar_reserva') return { accion: 'CONFIRMAR_RESERVA' };
     }
 
     return { accion: 'RESPONDER', texto: chatResponse.response.text() };
