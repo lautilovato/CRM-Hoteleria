@@ -59,10 +59,10 @@ describe('ReservationService', () => {
       jest.spyOn(roomRepository, 'findByCapacityExcluding').mockResolvedValue([mockRoom as any]);
 
       const botReply = await service.searchAvailability(
-        mockTelegramUserId, null, { checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 }
+        mockTelegramUserId, null, { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 }
       );
 
-      expect(botReply).toContain('Tenemos disponibilidad en nuestra Suite del 2026-10-10 al 2026-10-15 por $100 la noche.');
+      expect(botReply).toContain('Tenemos disponibilidad en nuestra Suite del 10-10-2026 al 15-10-2026 por $100 la noche.');
       expect(botReply).toContain('El total de tu estadía (5 noches) sería de $500');
       expect(botReply).toContain('seña del 30% de $150');
       expect(roomRepository.findByCapacityExcluding).toHaveBeenCalledWith(2, []);
@@ -75,7 +75,7 @@ describe('ReservationService', () => {
       jest.spyOn(roomRepository, 'findByCapacityExcluding').mockResolvedValue([]);
 
       const botReply = await service.searchAvailability(
-        mockTelegramUserId, null, { checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 }
+        mockTelegramUserId, null, { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 }
       );
 
       expect(botReply).toBe('Lamentablemente no nos quedan habitaciones para 2 personas en esas fechas. ¿Buscamos otras fechas?');
@@ -88,8 +88,8 @@ describe('ReservationService', () => {
     const activeBooking: any = {
       telegramUserId: mockTelegramUserId,
       step: BookingProcessStep.PENDING_CONFIRMATION,
-      checkIn: '2026-10-10',
-      checkOut: '2026-10-15',
+      checkIn: '10-10-2026',
+      checkOut: '15-10-2026',
       capacity: 2,
     };
 
@@ -102,7 +102,7 @@ describe('ReservationService', () => {
       const booking = { ...activeBooking };
       const botReply = await service.confirmReservation(mockTelegramUserId, booking);
 
-      expect(botReply).toContain('ha sido confirmada con éxito del 2026-10-10 al 2026-10-15');
+      expect(botReply).toContain('ha sido confirmada con éxito del 10-10-2026 al 15-10-2026');
       expect(botReply).toContain('El total de la estadía es de $500');
       expect(botReply).toContain('la seña a abonar para confirmarla es de $150');
       expect(reservationRepository.persist).toHaveBeenCalledWith(

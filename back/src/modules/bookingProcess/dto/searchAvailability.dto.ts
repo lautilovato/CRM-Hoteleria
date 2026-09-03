@@ -1,11 +1,23 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, Min } from 'class-validator';
+import { IsInt, Min, Validate, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+import { isValidDateFormat } from '../date.util';
+
+@ValidatorConstraint({ name: 'isDateFormat', async: false })
+class IsDateFormatConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return isValidDateFormat(value);
+  }
+
+  defaultMessage(): string {
+    return 'La fecha debe tener el formato DD-MM-YYYY y ser una fecha válida';
+  }
+}
 
 export class SearchAvailabilityDto {
-  @IsDateString({}, { message: 'La fecha de entrada (checkIn) no es una fecha válida' })
+  @Validate(IsDateFormatConstraint)
   checkIn!: string;
 
-  @IsDateString({}, { message: 'La fecha de salida (checkOut) no es una fecha válida' })
+  @Validate(IsDateFormatConstraint)
   checkOut!: string;
 
   @Type(() => Number)

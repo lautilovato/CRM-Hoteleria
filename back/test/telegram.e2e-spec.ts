@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { AppModule } from './../src/app.module';
 import { TelegramUpdate } from '../src/modules/telegram/telegram.update';
-import { RagService } from '../src/modules/rag/rag.service';
+import { RagService, ChatAction } from '../src/modules/rag/rag.service';
 import { MikroORM, EntityManager } from '@mikro-orm/core';
 import { Room, RoomStatus } from '../src/infrastructure/database/entities/Room.entity';
 import { RoomCategory } from '../src/infrastructure/database/entities/RoomCategory.entity';
@@ -79,8 +79,8 @@ describe('Telegram Flow (e2e)', () => {
 
     ragServiceMock.askQuestion.mockResolvedValueOnce({
       texto: '',
-      accion: 'BUSCAR_DISPONIBILIDAD',
-      datos: { checkIn: '2026-11-01', checkOut: '2026-11-05', capacidad: 2 }
+      action: ChatAction.SEARCH_AVAILABILITY,
+      datos: { checkIn: '01-11-2026', checkOut: '05-11-2026', capacity: 2 }
     });
 
     await telegramUpdate.onMessage('Quiero reservar para 2 en noviembre', mockCtx);
@@ -90,11 +90,11 @@ describe('Telegram Flow (e2e)', () => {
     const booking = await em.findOne(BookingProcess, { telegramUserId: '999888777' });
     expect(booking).toBeDefined();
     expect(booking?.step).toBe('PENDING_CONFIRMATION');
-    expect(booking?.checkIn).toBe('2026-11-01');
+    expect(booking?.checkIn).toBe('01-11-2026');
 
     ragServiceMock.askQuestion.mockResolvedValueOnce({
       texto: '',
-      accion: 'CONFIRMAR_RESERVA'
+      action: ChatAction.CONFIRM_RESERVATION
     });
 
     await telegramUpdate.onMessage('Perfecto, confirmalo', mockCtx);

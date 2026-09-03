@@ -47,20 +47,20 @@ describe('BookingProcessService', () => {
 
   describe('startSearch', () => {
     it('crea un booking nuevo cuando no hay uno activo', () => {
-      const booking = service.startSearch(mockTelegramUserId, null, { checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 });
+      const booking = service.startSearch(mockTelegramUserId, null, { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 });
 
       expect(repository.create).toHaveBeenCalledWith(mockTelegramUserId);
-      expect(booking).toMatchObject({ checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 });
+      expect(booking).toMatchObject({ checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 });
     });
 
     it('reutiliza el booking activo si ya existe', () => {
       const activeBooking: any = { telegramUserId: mockTelegramUserId, step: BookingProcessStep.IN_PROGRESS };
 
-      const booking = service.startSearch(mockTelegramUserId, activeBooking, { checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 });
+      const booking = service.startSearch(mockTelegramUserId, activeBooking, { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 });
 
       expect(repository.create).not.toHaveBeenCalled();
       expect(booking).toBe(activeBooking);
-      expect(booking).toMatchObject({ checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 });
+      expect(booking).toMatchObject({ checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 });
     });
   });
 

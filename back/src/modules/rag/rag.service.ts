@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { RagRepository } from './rag.repository';
 
+export enum ChatAction {
+  SEARCH_AVAILABILITY = 'SEARCH_AVAILABILITY',
+  CONFIRM_RESERVATION = 'CONFIRM_RESERVATION',
+  REPLY = 'REPLY',
+}
+
 @Injectable()
 export class RagService {
   private genAI: GoogleGenerativeAI;
@@ -47,24 +53,24 @@ export class RagService {
 
     const chatModel = this.genAI.getGenerativeModel({ 
       model: 'gemini-flash-lite-latest',
-      systemInstruction: `Eres Chamber, el asistente virtual y conserje digital del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. SOLO si te saludan, preséntate como Chamber. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nREGLA PARA RESERVAS: Si faltan datos, pregúntalos. Cuando tengas los 3 (entrada, salida, capacidad), usa 'procesar_reserva'. Si ya le ofreciste una habitación y el usuario acepta o confirma explícitamente, usa 'confirmar_reserva'.\n\nCONTEXTO:\n${contextText}`,
+      systemInstruction: `Eres Chamber, el asistente virtual del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nREGLA PARA RESERVAS: Si faltan datos, pregúntalos. Las fechas siempre deben pedirse y enviarse en formato DD-MM-YYYY. Cuando tengas los 3 (entrada, salida, capacidad), usa 'search_availability'. Si ya le ofreciste una habitación y el usuario acepta o confirma explícitamente, usa 'confirm_reservation'.\n\nCONTEXTO:\n${contextText}`,
       tools: [{
         functionDeclarations: [
           {
-            name: 'procesar_reserva',
+            name: 'search_availability',
             description: 'Llama a esta función para buscar disponibilidad.',
             parameters: {
               type: SchemaType.OBJECT,
               properties: {
-                checkIn: { type: SchemaType.STRING, description: 'Fecha entrada YYYY-MM-DD.' },
-                checkOut: { type: SchemaType.STRING, description: 'Fecha salida YYYY-MM-DD.' },
+                checkIn: { type: SchemaType.STRING, description: 'Fecha entrada DD-MM-YYYY.' },
+                checkOut: { type: SchemaType.STRING, description: 'Fecha salida DD-MM-YYYY.' },
                 capacity: { type: SchemaType.INTEGER, description: 'Cantidad de personas.' }
               },
               required: ['checkIn', 'checkOut', 'capacity']
             }
           },
           {
-            name: 'confirmar_reserva',
+            name: 'confirm_reservation',
             description: 'Llama a esta función ÚNICAMENTE cuando el usuario acepte confirmar la reserva previamente ofrecida.',
           }
         ]
@@ -80,11 +86,11 @@ export class RagService {
     if (functionCall) {
       const { name, args } = functionCall; 
       
-      if (name === 'procesar_reserva') return { accion: 'BUSCAR_DISPONIBILIDAD', datos: args };
-      if (name === 'confirmar_reserva') return { accion: 'CONFIRMAR_RESERVA' };
+      if (name === 'search_availability') return { action: ChatAction.SEARCH_AVAILABILITY, datos: args };
+      if (name === 'confirm_reservation') return { action: ChatAction.CONFIRM_RESERVATION };
     }
 
-    return { accion: 'RESPONDER', texto: chatResponse.response.text() };
+    return { action: ChatAction.REPLY, texto: chatResponse.response.text() };
   }
 
   private chunkText(text: string, chunkSize: number, overlap: number): string[] {

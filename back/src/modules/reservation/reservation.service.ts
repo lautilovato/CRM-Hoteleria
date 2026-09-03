@@ -5,6 +5,7 @@ import { SearchAvailabilityDto } from '../bookingProcess/dto/searchAvailability.
 import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
 import { RoomRepository } from '../room/room.repository';
 import { ReservationRepository } from './reservation.repository';
+import { parseDate } from '../bookingProcess/date.util';
 
 const DEPOSIT_PERCENTAGE = 0.3;
 
@@ -51,8 +52,8 @@ export class ReservationService {
 
     let botReply: string;
     if (roomToBook) {
-      const checkInDate = new Date(savedCheckIn);
-      const checkOutDate = new Date(savedCheckOut);
+      const checkInDate = parseDate(savedCheckIn);
+      const checkOutDate = parseDate(savedCheckOut);
       const nights = this.calculateNights(savedCheckIn, savedCheckOut);
       const totalAmount = roomToBook.category.basePrice * nights;
       const depositAmount = totalAmount * DEPOSIT_PERCENTAGE;
@@ -78,12 +79,12 @@ export class ReservationService {
     return botReply;
   }
 
-  private calculateNights(checkIn: string | Date, checkOut: string | Date): number {
-    return (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 3600 * 24);
+  private calculateNights(checkIn: string, checkOut: string): number {
+    return (parseDate(checkOut).getTime() - parseDate(checkIn).getTime()) / (1000 * 3600 * 24);
   }
 
-  private async findAvailableRoom(checkIn: string | Date, checkOut: string | Date, capacity: number): Promise<Room | null> {
-    const overlappingReservations = await this.reservationRepository.findOverlapping(new Date(checkIn), new Date(checkOut));
+  private async findAvailableRoom(checkIn: string, checkOut: string, capacity: number): Promise<Room | null> {
+    const overlappingReservations = await this.reservationRepository.findOverlapping(parseDate(checkIn), parseDate(checkOut));
     const reservedRoomIds = overlappingReservations.map(r => r.room.id);
 
     const availableRooms = await this.roomRepository.findByCapacityExcluding(capacity, reservedRoomIds);
