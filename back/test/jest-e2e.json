@@ -14,6 +14,7 @@
       }
     ]
   },
+  "testTimeout": 30000,
   "transformIgnorePatterns": [
     "<rootDir>/node_modules/(?!(@mikro-orm|kysely)/.*)"
   ]

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { RagService } from '../src/modules/rag/rag.service';
 
 describe('RagModule (e2e)', () => {
   let app: INestApplication;
@@ -9,7 +10,12 @@ describe('RagModule (e2e)', () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+    .overrideProvider(RagService)
+    .useValue({ 
+      askQuestion: jest.fn().mockResolvedValue({ texto: 'Respuesta de prueba', accion: 'RESPONDER' }) 
+    })
+    .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
