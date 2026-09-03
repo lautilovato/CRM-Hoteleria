@@ -1,55 +1,51 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/core';
 import { BookingProcess } from '../../infrastructure/database/entities/BookingProcess.entity';
 import { Room } from '../../infrastructure/database/entities/Room.entity';
-import { Reservation, ReservationStatus } from '../../infrastructure/database/entities/Reservation.entity';
 import { SearchAvailabilityDto } from './dto/search-availability.dto';
+import { BookingProcessRepository } from './booking-process.repository';
+import { RoomRepository } from './room.repository';
+import { ReservationRepository } from './reservation.repository';
 
 const DEPOSIT_PERCENTAGE = 0.3;
 
 @Injectable()
 export class ReservationService {
-  constructor(private readonly em: EntityManager) {}
+  constructor(
+    private readonly bookingProcessRepository: BookingProcessRepository,
+    private readonly roomRepository: RoomRepository,
+    private readonly reservationRepository: ReservationRepository,
+  ) {}
 
   async getActiveBooking(telegramUserId: string): Promise<BookingProcess | null> {
-    return this.em.findOne(BookingProcess, {
-      telegramUserId,
-      step: { $in: ['IN_PROGRESS', 'PENDING_CONFIRMATION'] },
-    });
+    return this.bookingProcessRepository.findActive(telegramUserId);
   }
 
   async getLastCompletedBooking(telegramUserId: string): Promise<BookingProcess | null> {
-    return this.em.findOne(
-      BookingProcess, { telegramUserId, step: 'COMPLETED' }, { orderBy: { createdAt: 'DESC' } }
-    );
+    return this.bookingProcessRepository.findLastCompleted(telegramUserId);
   }
 
-  async searchAvailability(
-    telegramUserId: string,
-    activeBooking: BookingProcess | null,
-    { checkIn, checkOut, capacity }: SearchAvailabilityDto,
-  ): Promise<string> {
-    let booking = activeBooking || this.em.create(BookingProcess, { telegramUserId, step: 'IN_PROGRESS' });
-    booking.checkIn = checkIn;
-    booking.checkOut = checkOut;
-    booking.capacity = capacity;
+  async searchAvailability(telegramUserId: string, activeBooking: BookingProcess | null, bookingData: SearchAvailabilityDto,): Promise<string> {
+    let booking = activeBooking || this.bookingProcessRepository.create(telegramUserId);
+    booking.checkIn = bookingData.checkIn;
+    booking.checkOut = bookingData.checkOut;
+    booking.capacity = bookingData.capacity;
 
-    const roomFound = await this.findAvailableRoom(checkIn, checkOut, capacity);
+    const roomFound = await this.findAvailableRoom(bookingData.checkIn, bookingData.checkOut, bookingData.capacity);
 
     let botReply: string;
     if (roomFound) {
       booking.step = 'PENDING_CONFIRMATION';
 
-      const nights = this.calculateNights(checkIn, checkOut);
+      const nights = this.calculateNights(bookingData.checkIn, bookingData.checkOut);
       const totalAmount = roomFound.category.basePrice * nights;
       const depositAmount = totalAmount * DEPOSIT_PERCENTAGE;
 
-      botReply = `Tenemos disponibilidad en nuestra ${roomFound.category.name} del ${checkIn} al ${checkOut} por $${roomFound.category.basePrice} la noche.\n\nEl total de tu estadía (${nights} noches) sería de $${totalAmount}, con una seña del 30% de $${depositAmount} para confirmar la reserva.\n\n¿Te gustaría que confirmemos la reserva?`;
+      botReply = `Tenemos disponibilidad en nuestra ${roomFound.category.name} del ${bookingData.checkIn} al ${bookingData.checkOut} por $${roomFound.category.basePrice} la noche.\n\nEl total de tu estadía (${nights} noches) sería de $${totalAmount}, con una seña del 30% de $${depositAmount} para confirmar la reserva.\n\n¿Te gustaría que confirmemos la reserva?`;
     } else {
       booking.step = 'IN_PROGRESS';
-      botReply = `Lamentablemente no nos quedan habitaciones para ${capacity} personas en esas fechas. ¿Buscamos otras fechas?`;
+      botReply = `Lamentablemente no nos quedan habitaciones para ${bookingData.capacity} personas en esas fechas. ¿Buscamos otras fechas?`;
     }
-    this.em.persist(booking);
+    this.bookingProcessRepository.persist(booking);
 
     return botReply;
   }
@@ -69,17 +65,16 @@ export class ReservationService {
       const totalAmount = roomToBook.category.basePrice * nights;
       const depositAmount = totalAmount * DEPOSIT_PERCENTAGE;
 
-      const newReservation = this.em.create(Reservation, {
+      const newReservation = this.reservationRepository.create({
         room: roomToBook,
         telegramUserId,
         checkIn: checkInDate,
         checkOut: checkOutDate,
-        totalAmount: totalAmount,
-        depositAmount: depositAmount,
-        status: ReservationStatus.PENDING_PAYMENT,
+        totalAmount,
+        depositAmount,
       });
 
-      this.em.persist(newReservation);
+      this.reservationRepository.persist(newReservation);
       activeBooking.step = 'COMPLETED';
 
       botReply = `¡Listo! Tu reserva en la ${roomToBook.category.name} ha sido confirmada con éxito del ${savedCheckIn} al ${savedCheckOut}. El total de la estadía es de $${totalAmount}, y la seña a abonar para confirmarla es de $${depositAmount}. ¡Te esperamos!`;
@@ -96,16 +91,10 @@ export class ReservationService {
   }
 
   private async findAvailableRoom(checkIn: string | Date, checkOut: string | Date, capacity: number): Promise<Room | null> {
-    const overlappingReservations = await this.em.find(Reservation, {
-      $and: [{ checkIn: { $lt: new Date(checkOut) } }, { checkOut: { $gt: new Date(checkIn) } }],
-    }, { populate: ['room'] });
-
+    const overlappingReservations = await this.reservationRepository.findOverlapping(new Date(checkIn), new Date(checkOut));
     const reservedRoomIds = overlappingReservations.map(r => r.room.id);
 
-    const availableRooms = await this.em.find(Room, {
-      category: { capacity: { $gte: capacity } },
-      ...(reservedRoomIds.length > 0 ? { id: { $nin: reservedRoomIds } } : {}),
-    }, { populate: ['category'] });
+    const availableRooms = await this.roomRepository.findByCapacityExcluding(capacity, reservedRoomIds);
 
     return availableRooms.length > 0 ? availableRooms[0] : null;
   }
