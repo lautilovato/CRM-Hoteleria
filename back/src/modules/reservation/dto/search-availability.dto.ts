@@ -11,5 +11,5 @@ export class SearchAvailabilityDto {
   @Type(() => Number)
   @IsInt({ message: 'La capacidad debe ser un número entero' })
   @Min(1, { message: 'La capacidad debe ser mayor a 0' })
-  capacidad!: number;
+  capacity!: number;
 }

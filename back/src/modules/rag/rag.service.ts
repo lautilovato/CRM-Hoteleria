@@ -38,7 +38,7 @@ export class RagService {
 
     let contextoReserva = '';
     if (reservaActiva) {
-      contextoReserva = `\n[ESTADO ACTUAL: Faltan datos. CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Capacidad=${reservaActiva.roomType || 'No'}]`;
+      contextoReserva = `\n[ESTADO ACTUAL: Faltan datos. CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Capacidad=${reservaActiva.capacity || 'No'}]`;
     } else if (ultimaCompletada) {
       contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue confirmada. PROHIBIDO usar las herramientas para estos datos.]`;
     }
@@ -58,9 +58,9 @@ export class RagService {
               properties: {
                 checkIn: { type: SchemaType.STRING, description: 'Fecha entrada YYYY-MM-DD.' },
                 checkOut: { type: SchemaType.STRING, description: 'Fecha salida YYYY-MM-DD.' },
-                capacidad: { type: SchemaType.INTEGER, description: 'Cantidad de personas.' }
+                capacity: { type: SchemaType.INTEGER, description: 'Cantidad de personas.' }
               },
-              required: ['checkIn', 'checkOut', 'capacidad']
+              required: ['checkIn', 'checkOut', 'capacity']
             }
           },
           {

@@ -76,7 +76,7 @@ describe('TelegramUpdate', () => {
     jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
       texto: '',
       accion: 'BUSCAR_DISPONIBILIDAD',
-      datos: { checkIn: '2026-10-10', checkOut: '2026-10-15', capacidad: 2 }
+      datos: { checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 }
     } as any);
 
     jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue(
@@ -86,7 +86,7 @@ describe('TelegramUpdate', () => {
     await update.onMessage('Quiero reservar', mockCtx);
 
     expect(reservationService.searchAvailability).toHaveBeenCalledWith(
-      mockTelegramUserId, null, expect.objectContaining({ checkIn: '2026-10-10', checkOut: '2026-10-15', capacidad: 2 })
+      mockTelegramUserId, null, expect.objectContaining({ checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 })
     );
     expect(mockCtx.reply).toHaveBeenCalledWith(
       expect.stringContaining('¡Buenas noticias! Tenemos disponibilidad en nuestra Suite')
@@ -97,7 +97,7 @@ describe('TelegramUpdate', () => {
     jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
       texto: '',
       accion: 'BUSCAR_DISPONIBILIDAD',
-      datos: { checkIn: 'no-es-una-fecha', checkOut: '2026-10-15', capacidad: 2 }
+      datos: { checkIn: 'no-es-una-fecha', checkOut: '2026-10-15', capacity: 2 }
     } as any);
 
     await update.onMessage('Quiero reservar', mockCtx);
@@ -114,7 +114,7 @@ describe('TelegramUpdate', () => {
       step: 'PENDING_CONFIRMATION',
       checkIn: '2026-10-10',
       checkOut: '2026-10-15',
-      roomType: '2'
+      capacity: 2
     };
 
     jest.spyOn(reservationService, 'getActiveBooking').mockResolvedValue(activeBooking);

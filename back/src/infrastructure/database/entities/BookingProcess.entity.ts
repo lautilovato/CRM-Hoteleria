@@ -19,6 +19,6 @@ export class BookingProcess extends CustomBaseEntity {
   @Property({ type: 'varchar', nullable: true })
   checkOut?: string;
 
-  @Property({ type: 'varchar', nullable: true })
-  roomType?: string;
+  @Property({ type: 'integer', nullable: true })
+  capacity?: number;
 }
