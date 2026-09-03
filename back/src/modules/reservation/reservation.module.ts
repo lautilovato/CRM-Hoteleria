@@ -1,18 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ReservationService } from './reservation.service';
-import { RoomSeederService } from './room.seeder.service';
-import { BookingProcessRepository } from './booking-process.repository';
-import { RoomRepository } from './room.repository';
 import { ReservationRepository } from './reservation.repository';
+import { BookingProcessModule } from '../bookingProcess/bookingProcess.module';
+import { RoomModule } from '../room/room.module';
 
 @Module({
-  providers: [
-    ReservationService,
-    RoomSeederService,
-    BookingProcessRepository,
-    RoomRepository,
-    ReservationRepository,
-  ],
+  imports: [BookingProcessModule, RoomModule],
+  providers: [ReservationService, ReservationRepository],
   exports: [ReservationService],
 })
 export class ReservationModule {}

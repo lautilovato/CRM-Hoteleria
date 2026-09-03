@@ -1,12 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReservationService } from './reservation.service';
-import { BookingProcessRepository } from './booking-process.repository';
-import { RoomRepository } from './room.repository';
+import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
+import { RoomRepository } from '../room/room.repository';
 import { ReservationRepository } from './reservation.repository';
+import { BookingProcessStep } from '../../infrastructure/database/entities/BookingProcess.entity';
 
 describe('ReservationService', () => {
   let service: ReservationService;
-  let bookingProcessRepository: BookingProcessRepository;
+  let bookingProcessService: BookingProcessService;
   let roomRepository: RoomRepository;
   let reservationRepository: ReservationRepository;
 
@@ -17,12 +18,14 @@ describe('ReservationService', () => {
       providers: [
         ReservationService,
         {
-          provide: BookingProcessRepository,
+          provide: BookingProcessService,
           useValue: {
-            findActive: jest.fn(),
-            findLastCompleted: jest.fn(),
-            create: jest.fn().mockImplementation((telegramUserId: string) => ({ telegramUserId, step: 'IN_PROGRESS' })),
-            persist: jest.fn(),
+            startSearch: jest.fn().mockImplementation((telegramUserId, activeBooking, dto) =>
+              activeBooking || { telegramUserId, checkIn: dto.checkIn, checkOut: dto.checkOut, capacity: dto.capacity, step: BookingProcessStep.IN_PROGRESS }
+            ),
+            markPendingConfirmation: jest.fn(),
+            markInProgress: jest.fn(),
+            markCompleted: jest.fn(),
           },
         },
         {
@@ -43,7 +46,7 @@ describe('ReservationService', () => {
     }).compile();
 
     service = module.get<ReservationService>(ReservationService);
-    bookingProcessRepository = module.get<BookingProcessRepository>(BookingProcessRepository);
+    bookingProcessService = module.get<BookingProcessService>(BookingProcessService);
     roomRepository = module.get<RoomRepository>(RoomRepository);
     reservationRepository = module.get<ReservationRepository>(ReservationRepository);
   });
@@ -63,9 +66,8 @@ describe('ReservationService', () => {
       expect(botReply).toContain('El total de tu estadía (5 noches) sería de $500');
       expect(botReply).toContain('seña del 30% de $150');
       expect(roomRepository.findByCapacityExcluding).toHaveBeenCalledWith(2, []);
-      expect(bookingProcessRepository.persist).toHaveBeenCalledWith(
-        expect.objectContaining({ step: 'PENDING_CONFIRMATION', checkIn: '2026-10-10', checkOut: '2026-10-15', capacity: 2 })
-      );
+      expect(bookingProcessService.markPendingConfirmation).toHaveBeenCalled();
+      expect(bookingProcessService.markInProgress).not.toHaveBeenCalled();
     });
 
     it('devuelve el mensaje de "sin disponibilidad" cuando no hay habitaciones libres', async () => {
@@ -77,14 +79,15 @@ describe('ReservationService', () => {
       );
 
       expect(botReply).toBe('Lamentablemente no nos quedan habitaciones para 2 personas en esas fechas. ¿Buscamos otras fechas?');
-      expect(bookingProcessRepository.persist).toHaveBeenCalledWith(expect.objectContaining({ step: 'IN_PROGRESS' }));
+      expect(bookingProcessService.markInProgress).toHaveBeenCalled();
+      expect(bookingProcessService.markPendingConfirmation).not.toHaveBeenCalled();
     });
   });
 
   describe('confirmReservation', () => {
     const activeBooking: any = {
       telegramUserId: mockTelegramUserId,
-      step: 'PENDING_CONFIRMATION',
+      step: BookingProcessStep.PENDING_CONFIRMATION,
       checkIn: '2026-10-10',
       checkOut: '2026-10-15',
       capacity: 2,
@@ -96,7 +99,8 @@ describe('ReservationService', () => {
       jest.spyOn(reservationRepository, 'findOverlapping').mockResolvedValue([]);
       jest.spyOn(roomRepository, 'findByCapacityExcluding').mockResolvedValue([mockRoom as any]);
 
-      const botReply = await service.confirmReservation(mockTelegramUserId, { ...activeBooking });
+      const booking = { ...activeBooking };
+      const botReply = await service.confirmReservation(mockTelegramUserId, booking);
 
       expect(botReply).toContain('ha sido confirmada con éxito del 2026-10-10 al 2026-10-15');
       expect(botReply).toContain('El total de la estadía es de $500');
@@ -104,6 +108,7 @@ describe('ReservationService', () => {
       expect(reservationRepository.persist).toHaveBeenCalledWith(
         expect.objectContaining({ totalAmount: 500, depositAmount: 150, room: mockRoom })
       );
+      expect(bookingProcessService.markCompleted).toHaveBeenCalledWith(booking);
     });
 
     it('marca el booking como IN_PROGRESS si la habitación se ocupó mientras tanto', async () => {
@@ -114,7 +119,7 @@ describe('ReservationService', () => {
       const botReply = await service.confirmReservation(mockTelegramUserId, booking);
 
       expect(botReply).toContain('alguien acaba de reservar la última habitación disponible');
-      expect(booking.step).toBe('IN_PROGRESS');
+      expect(bookingProcessService.markInProgress).toHaveBeenCalledWith(booking);
       expect(reservationRepository.persist).not.toHaveBeenCalled();
     });
   });

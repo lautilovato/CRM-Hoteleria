@@ -4,11 +4,14 @@ import { Context } from 'telegraf';
 import { TelegramUpdate } from './telegram.update';
 import { RagService } from '../rag/rag.service';
 import { ReservationService } from '../reservation/reservation.service';
+import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
+import { BookingProcessStep } from '../../infrastructure/database/entities/BookingProcess.entity';
 
 describe('TelegramUpdate', () => {
   let update: TelegramUpdate;
   let ragService: RagService;
   let reservationService: ReservationService;
+  let bookingProcessService: BookingProcessService;
   let em: EntityManager;
 
   const mockTelegramUserId = '123456789';
@@ -25,10 +28,15 @@ describe('TelegramUpdate', () => {
         {
           provide: ReservationService,
           useValue: {
-            getActiveBooking: jest.fn(),
-            getLastCompletedBooking: jest.fn(),
             searchAvailability: jest.fn(),
             confirmReservation: jest.fn(),
+          },
+        },
+        {
+          provide: BookingProcessService,
+          useValue: {
+            getActive: jest.fn(),
+            getLastCompleted: jest.fn(),
           },
         },
         {
@@ -47,10 +55,11 @@ describe('TelegramUpdate', () => {
     update = module.get<TelegramUpdate>(TelegramUpdate);
     ragService = module.get<RagService>(RagService);
     reservationService = module.get<ReservationService>(ReservationService);
+    bookingProcessService = module.get<BookingProcessService>(BookingProcessService);
     em = module.get<EntityManager>(EntityManager);
 
-    jest.spyOn(reservationService, 'getActiveBooking').mockResolvedValue(null);
-    jest.spyOn(reservationService, 'getLastCompletedBooking').mockResolvedValue(null);
+    jest.spyOn(bookingProcessService, 'getActive').mockResolvedValue(null);
+    jest.spyOn(bookingProcessService, 'getLastCompleted').mockResolvedValue(null);
     jest.spyOn(em, 'find').mockResolvedValue([]);
 
     mockCtx = {
@@ -117,14 +126,14 @@ describe('TelegramUpdate', () => {
       capacity: 2
     };
 
-    jest.spyOn(reservationService, 'getActiveBooking').mockResolvedValue(activeBooking);
+    jest.spyOn(bookingProcessService, 'getActive').mockResolvedValue(activeBooking);
     jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
       texto: '',
       accion: 'CONFIRMAR_RESERVA'
     } as any);
 
     jest.spyOn(reservationService, 'confirmReservation').mockImplementation(async (_telegramUserId, booking) => {
-      booking.step = 'COMPLETED';
+      booking.step = BookingProcessStep.COMPLETED;
       return '¡Listo! Tu reserva en la Suite ha sido confirmada con éxito del 2026-10-10 al 2026-10-15. El total a abonar será de $500. ¡Te esperamos!';
     });
 

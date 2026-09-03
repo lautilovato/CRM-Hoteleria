@@ -1,6 +1,13 @@
-import { Entity, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
+import { Entity, PrimaryKey, Property, Enum } from '@mikro-orm/decorators/legacy';
 import { v4 } from 'uuid';
 import { CustomBaseEntity } from './CustomBase.entity';
+
+export enum BookingProcessStep {
+  AWAITING_CHECKIN = 'AWAITING_CHECKIN',
+  IN_PROGRESS = 'IN_PROGRESS',
+  PENDING_CONFIRMATION = 'PENDING_CONFIRMATION',
+  COMPLETED = 'COMPLETED',
+}
 
 @Entity({ tableName: 'booking_processes' })
 export class BookingProcess extends CustomBaseEntity {
@@ -10,8 +17,8 @@ export class BookingProcess extends CustomBaseEntity {
   @Property({ type: 'varchar' })
   telegramUserId!: string;
 
-  @Property({ type: 'varchar', default: 'AWAITING_CHECKIN' })
-  step: string = 'AWAITING_CHECKIN'; 
+  @Enum(() => BookingProcessStep)
+  step: BookingProcessStep = BookingProcessStep.AWAITING_CHECKIN;
 
   @Property({ type: 'varchar', nullable: true })
   checkIn?: string;

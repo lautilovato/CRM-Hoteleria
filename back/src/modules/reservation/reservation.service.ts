@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { BookingProcess } from '../../infrastructure/database/entities/BookingProcess.entity';
 import { Room } from '../../infrastructure/database/entities/Room.entity';
-import { SearchAvailabilityDto } from './dto/search-availability.dto';
-import { BookingProcessRepository } from './booking-process.repository';
-import { RoomRepository } from './room.repository';
+import { SearchAvailabilityDto } from '../bookingProcess/dto/searchAvailability.dto';
+import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
+import { RoomRepository } from '../room/room.repository';
 import { ReservationRepository } from './reservation.repository';
 
 const DEPOSIT_PERCENTAGE = 0.3;
@@ -11,30 +11,23 @@ const DEPOSIT_PERCENTAGE = 0.3;
 @Injectable()
 export class ReservationService {
   constructor(
-    private readonly bookingProcessRepository: BookingProcessRepository,
+    private readonly bookingProcessService: BookingProcessService,
     private readonly roomRepository: RoomRepository,
     private readonly reservationRepository: ReservationRepository,
   ) {}
 
-  async getActiveBooking(telegramUserId: string): Promise<BookingProcess | null> {
-    return this.bookingProcessRepository.findActive(telegramUserId);
-  }
-
-  async getLastCompletedBooking(telegramUserId: string): Promise<BookingProcess | null> {
-    return this.bookingProcessRepository.findLastCompleted(telegramUserId);
-  }
-
-  async searchAvailability(telegramUserId: string, activeBooking: BookingProcess | null, bookingData: SearchAvailabilityDto,): Promise<string> {
-    let booking = activeBooking || this.bookingProcessRepository.create(telegramUserId);
-    booking.checkIn = bookingData.checkIn;
-    booking.checkOut = bookingData.checkOut;
-    booking.capacity = bookingData.capacity;
+  async searchAvailability(
+    telegramUserId: string,
+    activeBooking: BookingProcess | null,
+    bookingData: SearchAvailabilityDto,
+  ): Promise<string> {
+    const booking = this.bookingProcessService.startSearch(telegramUserId, activeBooking, bookingData);
 
     const roomFound = await this.findAvailableRoom(bookingData.checkIn, bookingData.checkOut, bookingData.capacity);
 
     let botReply: string;
     if (roomFound) {
-      booking.step = 'PENDING_CONFIRMATION';
+      this.bookingProcessService.markPendingConfirmation(booking);
 
       const nights = this.calculateNights(bookingData.checkIn, bookingData.checkOut);
       const totalAmount = roomFound.category.basePrice * nights;
@@ -42,10 +35,9 @@ export class ReservationService {
 
       botReply = `Tenemos disponibilidad en nuestra ${roomFound.category.name} del ${bookingData.checkIn} al ${bookingData.checkOut} por $${roomFound.category.basePrice} la noche.\n\nEl total de tu estadía (${nights} noches) sería de $${totalAmount}, con una seña del 30% de $${depositAmount} para confirmar la reserva.\n\n¿Te gustaría que confirmemos la reserva?`;
     } else {
-      booking.step = 'IN_PROGRESS';
+      this.bookingProcessService.markInProgress(booking);
       botReply = `Lamentablemente no nos quedan habitaciones para ${bookingData.capacity} personas en esas fechas. ¿Buscamos otras fechas?`;
     }
-    this.bookingProcessRepository.persist(booking);
 
     return botReply;
   }
@@ -75,12 +67,12 @@ export class ReservationService {
       });
 
       this.reservationRepository.persist(newReservation);
-      activeBooking.step = 'COMPLETED';
+      this.bookingProcessService.markCompleted(activeBooking);
 
       botReply = `¡Listo! Tu reserva en la ${roomToBook.category.name} ha sido confirmada con éxito del ${savedCheckIn} al ${savedCheckOut}. El total de la estadía es de $${totalAmount}, y la seña a abonar para confirmarla es de $${depositAmount}. ¡Te esperamos!`;
     } else {
       botReply = `Uy, parece que alguien acaba de reservar la última habitación disponible para esas fechas mientras hablábamos. ¿Te gustaría buscar otra fecha?`;
-      activeBooking.step = 'IN_PROGRESS';
+      this.bookingProcessService.markInProgress(activeBooking);
     }
 
     return botReply;

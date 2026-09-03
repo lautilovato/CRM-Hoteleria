@@ -5,14 +5,17 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { RagService } from '../rag/rag.service';
 import { ReservationService } from '../reservation/reservation.service';
-import { SearchAvailabilityDto } from '../reservation/dto/search-availability.dto';
+import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
+import { SearchAvailabilityDto } from '../bookingProcess/dto/searchAvailability.dto';
 import { ChatMessage, MessageRole } from '../../infrastructure/database/entities/ChatMessage.entity';
+import { BookingProcessStep } from '../../infrastructure/database/entities/BookingProcess.entity';
 
 @Update()
 export class TelegramUpdate {
   constructor(
     private readonly ragService: RagService,
     private readonly reservationService: ReservationService,
+    private readonly bookingProcessService: BookingProcessService,
     private readonly em: EntityManager,
   ) {}
 
@@ -28,9 +31,9 @@ export class TelegramUpdate {
     await ctx.sendChatAction('typing'); 
 
     try {
-      const activeBooking = await this.reservationService.getActiveBooking(telegramUserId);
+      const activeBooking = await this.bookingProcessService.getActive(telegramUserId);
 
-      const lastCompletedBooking = await this.reservationService.getLastCompletedBooking(telegramUserId);
+      const lastCompletedBooking = await this.bookingProcessService.getLastCompleted(telegramUserId);
 
       const previousMessages = await this.em.find(
         ChatMessage, { telegramUserId }, { orderBy: { createdAt: 'DESC' }, limit: 6 }
@@ -54,7 +57,7 @@ export class TelegramUpdate {
         botReply = await this.reservationService.searchAvailability(telegramUserId, activeBooking, searchDto);
       }
 
-      if (aiResponse.accion === 'CONFIRMAR_RESERVA' && activeBooking && activeBooking.step === 'PENDING_CONFIRMATION') {
+      if (aiResponse.accion === 'CONFIRMAR_RESERVA' && activeBooking && activeBooking.step === BookingProcessStep.PENDING_CONFIRMATION) {
         botReply = await this.reservationService.confirmReservation(telegramUserId, activeBooking);
       }
 
