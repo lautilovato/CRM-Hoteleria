@@ -109,4 +109,45 @@ describe('Telegram Flow (e2e)', () => {
     const completedBooking = await em.findOne(BookingProcess, { id: booking?.id });
     expect(completedBooking?.step).toBe('COMPLETED');
   });
+
+  it('Flujo sin disponibilidad: debería reintentar con otra capacidad reutilizando el mismo booking', async () => {
+    const otherTelegramUserId = '111222333';
+    const mockCtx = {
+      from: { id: 111222333 },
+      sendChatAction: jest.fn(),
+      reply: jest.fn(),
+    } as any;
+
+    ragServiceMock.askQuestion.mockResolvedValueOnce({
+      texto: '',
+      action: ChatAction.SEARCH_AVAILABILITY,
+      datos: { checkIn: '01-12-2026', checkOut: '05-12-2026', capacity: 99 }
+    });
+
+    await telegramUpdate.onMessage('Quiero reservar para 99 personas', mockCtx);
+
+    em.clear();
+
+    let booking = await em.findOne(BookingProcess, { telegramUserId: otherTelegramUserId });
+    expect(booking).toBeDefined();
+    expect(booking?.step).toBe('IN_PROGRESS');
+    expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('no nos quedan habitaciones'));
+
+    const firstBookingId = booking?.id;
+
+    ragServiceMock.askQuestion.mockResolvedValueOnce({
+      texto: '',
+      action: ChatAction.SEARCH_AVAILABILITY,
+      datos: { checkIn: '01-12-2026', checkOut: '05-12-2026', capacity: 2 }
+    });
+
+    await telegramUpdate.onMessage('Probemos con 2 personas', mockCtx);
+
+    em.clear();
+
+    booking = await em.findOne(BookingProcess, { telegramUserId: otherTelegramUserId });
+    expect(booking?.id).toBe(firstBookingId);
+    expect(booking?.step).toBe('PENDING_CONFIRMATION');
+    expect(booking?.capacity).toBe(2);
+  });
 });
