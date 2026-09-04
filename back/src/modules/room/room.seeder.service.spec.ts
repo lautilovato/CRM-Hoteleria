@@ -1,11 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EntityManager } from '@mikro-orm/core';
-// Room debe importarse antes que RoomSeederService: sus entidades tienen un import
-// circular (Room <-> RoomCategory) y RoomSeederService importa RoomCategory primero,
-// lo que rompe la inicialización si Room no está resuelto todavía.
+import { RoomSeederService } from './room.seeder.service';
 import { Room } from '../../infrastructure/database/entities/Room.entity';
 import { RoomCategory } from '../../infrastructure/database/entities/RoomCategory.entity';
-import { RoomSeederService } from './room.seeder.service';
 
 describe('RoomSeederService', () => {
   let service: RoomSeederService;

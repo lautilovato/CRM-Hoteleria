@@ -1,7 +1,7 @@
 import { Collection } from '@mikro-orm/core'; 
 import { Entity, PrimaryKey, Property, OneToMany, ManyToOne, Enum } from '@mikro-orm/decorators/legacy';
 import { v4 } from 'uuid';
-import { Room } from './Room.entity';
+import type { Room } from './Room.entity';
 import { CustomBaseEntity } from './CustomBase.entity';
 
 @Entity({ tableName: 'room_categories' })
@@ -18,6 +18,6 @@ export class RoomCategory extends CustomBaseEntity {
   @Property({ type: 'decimal', precision: 10, scale: 2 })
   basePrice!: number;
 
-  @OneToMany(() => Room, 'category')
+  @OneToMany(() => require('./Room.entity').Room, 'category')
   rooms = new Collection<Room>(this);
 }
