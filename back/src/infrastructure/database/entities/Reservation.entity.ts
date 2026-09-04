@@ -1,5 +1,4 @@
-import { Collection } from '@mikro-orm/core'; 
-import { Entity, PrimaryKey, Property, OneToMany, ManyToOne, Enum } from '@mikro-orm/decorators/legacy';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/decorators/legacy';
 import { v4 } from 'uuid';
 import { Room } from './Room.entity';
 import { CustomBaseEntity } from './CustomBase.entity';
@@ -32,4 +31,7 @@ export class Reservation extends CustomBaseEntity {
 
   @Property({ type: 'decimal', precision: 12, scale: 2 })
   totalAmount!: number;
+
+  @Property({ type: 'decimal', precision: 12, scale: 2 })
+  depositAmount!: number;
 }

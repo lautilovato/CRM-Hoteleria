@@ -2,7 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
-import { RagService } from '../src/modules/rag/rag.service';
+import { RagService, ChatAction } from '../src/modules/rag/rag.service';
+import { getBotToken } from 'nestjs-telegraf';
 
 describe('RagModule (e2e)', () => {
   let app: INestApplication;
@@ -12,9 +13,11 @@ describe('RagModule (e2e)', () => {
       imports: [AppModule],
     })
     .overrideProvider(RagService)
-    .useValue({ 
-      askQuestion: jest.fn().mockResolvedValue({ texto: 'Respuesta de prueba', accion: 'RESPONDER' }) 
+    .useValue({
+      askQuestion: jest.fn().mockResolvedValue({ texto: 'Respuesta de prueba', action: ChatAction.REPLY })
     })
+    .overrideProvider(getBotToken())
+    .useValue({ launch: jest.fn(), stop: jest.fn(), on: jest.fn(), start: jest.fn(), use: jest.fn() })
     .compile();
 
     app = moduleFixture.createNestApplication();
