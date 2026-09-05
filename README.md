@@ -1,8 +1,6 @@
 ﻿# 📚 Documentación - OmniDesk
 ![Logo OmniDesk](./logoONMIDESK.png)
 
-Este directorio contiene la documentación funcional y técnica del proyecto
-
 ## Elevator's Pitch
 
 * **Para** dueños de hoteles y alojamientos,
