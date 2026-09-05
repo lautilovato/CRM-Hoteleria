@@ -18,24 +18,3 @@ Este directorio contiene la documentación funcional y técnica del proyecto
 
 * Lucrecia Colón
 * Lautaro Lovato
-
-## Contenido
-
-### Entregas
-Documentación asociada a las iteraciones del proyecto.
-
-### [Arquitectura]
-Documentación técnica del sistema.
-
-### Funcionalidades
-Descripción funcional de los módulos principales.
-
-
-### Nota del Proyecto: Base de Datos Vectorial
-
-Para levantar la imagen de la base de datos vectorial en Docker, utiliza el siguiente comando:
-
-```sh
-docker-compose up -d
-```
-
