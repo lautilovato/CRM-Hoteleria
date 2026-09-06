@@ -34,4 +34,19 @@ export class Reservation extends CustomBaseEntity {
 
   @Property({ type: 'decimal', precision: 12, scale: 2 })
   depositAmount!: number;
+
+  @Property({ type: 'varchar' })
+  guestFullName!: string;
+
+  @Property({ type: 'varchar' })
+  guestDni!: string;
+
+  @Property({ type: 'varchar', nullable: true })
+  mpPreferenceId?: string;
+
+  @Property({ type: 'varchar', nullable: true })
+  mpInitPoint?: string;
+
+  @Property({ type: 'varchar', nullable: true })
+  mpPaymentId?: string;
 }

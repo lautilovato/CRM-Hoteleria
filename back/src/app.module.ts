@@ -6,17 +6,19 @@ import { session } from 'telegraf';
 import databaseConfig from './infrastructure/database/database.config';
 import { RagModule } from './modules/rag/rag.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
+import { PaymentModule } from './modules/payment/payment.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, 
+      isGlobal: true,
     }),
     MikroOrmModule.forRoot(databaseConfig),
     RagModule,
     TelegramModule,
+    PaymentModule,
     TelegrafModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

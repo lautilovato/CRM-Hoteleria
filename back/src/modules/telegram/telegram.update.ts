@@ -7,6 +7,7 @@ import { RagService, ChatAction } from '../rag/rag.service';
 import { ReservationService } from '../reservation/reservation.service';
 import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
 import { SearchAvailabilityDto } from '../bookingProcess/dto/searchAvailability.dto';
+import { ConfirmReservationDto } from '../reservation/dto/confirmReservation.dto';
 import { ChatMessage, MessageRole } from '../../infrastructure/database/entities/ChatMessage.entity';
 import { BookingProcess, BookingProcessStep } from '../../infrastructure/database/entities/BookingProcess.entity';
 
@@ -66,7 +67,7 @@ export class TelegramUpdate {
       case ChatAction.SEARCH_AVAILABILITY:
         return this.resolveSearchAvailability(aiResponse.datos, telegramUserId, activeBooking);
       case ChatAction.CONFIRM_RESERVATION:
-        return this.resolveConfirmReservation(telegramUserId, activeBooking, aiResponse.texto);
+        return this.resolveConfirmReservation(aiResponse.datos, telegramUserId, activeBooking, aiResponse.texto);
       default:
         return aiResponse.texto;
     }
@@ -83,11 +84,18 @@ export class TelegramUpdate {
     return this.reservationService.searchAvailability(telegramUserId, activeBooking, searchDto);
   }
 
-  private async resolveConfirmReservation(telegramUserId: string, activeBooking: BookingProcess | null, fallbackReply: string): Promise<string> {
+  private async resolveConfirmReservation(datos: unknown, telegramUserId: string, activeBooking: BookingProcess | null, fallbackReply: string): Promise<string> {
     if (!activeBooking || activeBooking.step !== BookingProcessStep.PENDING_CONFIRMATION) {
       return fallbackReply;
     }
 
-    return this.reservationService.confirmReservation(telegramUserId, activeBooking);
+    const confirmDto = plainToInstance(ConfirmReservationDto, datos);
+    const validationErrors = await validate(confirmDto);
+    if (validationErrors.length > 0) {
+      const [firstError] = validationErrors;
+      throw new Error(Object.values(firstError.constraints || {})[0] || 'Datos de confirmación de reserva inválidos');
+    }
+
+    return this.reservationService.confirmReservation(telegramUserId, activeBooking, confirmDto);
   }
 }

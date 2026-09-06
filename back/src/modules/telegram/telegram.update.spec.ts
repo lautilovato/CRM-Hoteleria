@@ -129,7 +129,8 @@ describe('TelegramUpdate', () => {
     jest.spyOn(bookingProcessService, 'getActive').mockResolvedValue(activeBooking);
     jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
       texto: '',
-      action: ChatAction.CONFIRM_RESERVATION
+      action: ChatAction.CONFIRM_RESERVATION,
+      datos: { fullName: 'Juan Pérez', dni: '30111222' }
     } as any);
 
     jest.spyOn(reservationService, 'confirmReservation').mockImplementation(async (_telegramUserId, booking) => {
@@ -144,5 +145,29 @@ describe('TelegramUpdate', () => {
       expect.stringContaining('ha sido confirmada con éxito')
     );
     expect(em.persist).toHaveBeenCalledTimes(2);
+  });
+
+  it('debería responder con error técnico si faltan nombre completo o DNI al confirmar (CONFIRM_RESERVATION)', async () => {
+    const activeBooking: any = {
+      telegramUserId: mockTelegramUserId,
+      step: 'PENDING_CONFIRMATION',
+      checkIn: '10-10-2026',
+      checkOut: '15-10-2026',
+      capacity: 2
+    };
+
+    jest.spyOn(bookingProcessService, 'getActive').mockResolvedValue(activeBooking);
+    jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
+      texto: '',
+      action: ChatAction.CONFIRM_RESERVATION,
+      datos: { fullName: '', dni: 'no-es-un-dni' }
+    } as any);
+
+    await update.onMessage('Sí, confirmo', mockCtx);
+
+    expect(reservationService.confirmReservation).not.toHaveBeenCalled();
+    expect(mockCtx.reply).toHaveBeenCalledWith(
+      'Hubo un error técnico al procesar tu consulta. Por favor, intentá nuevamente.'
+    );
   });
 });

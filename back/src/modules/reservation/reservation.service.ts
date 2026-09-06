@@ -6,6 +6,8 @@ import { BookingProcessService } from '../bookingProcess/bookingProcess.service'
 import { RoomRepository } from '../room/room.repository';
 import { ReservationRepository } from './reservation.repository';
 import { parseDate } from '../bookingProcess/date.util';
+import { PaymentService } from '../payment/payment.service';
+import { ConfirmReservationDto } from './dto/confirmReservation.dto';
 
 const DEPOSIT_PERCENTAGE = 0.3;
 
@@ -15,6 +17,7 @@ export class ReservationService {
     private readonly bookingProcessService: BookingProcessService,
     private readonly roomRepository: RoomRepository,
     private readonly reservationRepository: ReservationRepository,
+    private readonly paymentService: PaymentService,
   ) {}
 
   async searchAvailability(
@@ -43,7 +46,7 @@ export class ReservationService {
     return botReply;
   }
 
-  async confirmReservation(telegramUserId: string, activeBooking: BookingProcess): Promise<string> {
+  async confirmReservation(telegramUserId: string, activeBooking: BookingProcess, guestData: ConfirmReservationDto): Promise<string> {
     const savedCheckIn = activeBooking.checkIn as string;
     const savedCheckOut = activeBooking.checkOut as string;
     const capacity = activeBooking.capacity as number;
@@ -65,12 +68,18 @@ export class ReservationService {
         checkOut: checkOutDate,
         totalAmount,
         depositAmount,
+        guestFullName: guestData.fullName,
+        guestDni: guestData.dni,
       });
 
       this.reservationRepository.persist(newReservation);
       this.bookingProcessService.markCompleted(activeBooking);
 
-      botReply = `¡Listo! Tu reserva en la ${roomToBook.category.name} ha sido confirmada con éxito del ${savedCheckIn} al ${savedCheckOut}. El total de la estadía es de $${totalAmount}, y la seña a abonar para confirmarla es de $${depositAmount}. ¡Te esperamos!`;
+      const { preferenceId, initPoint } = await this.paymentService.createPreference(newReservation, guestData);
+      newReservation.mpPreferenceId = preferenceId;
+      newReservation.mpInitPoint = initPoint;
+
+      botReply = `¡Listo! Tu reserva en la ${roomToBook.category.name} ha sido confirmada con éxito del ${savedCheckIn} al ${savedCheckOut}. El total de la estadía es de $${totalAmount}, y la seña a abonar para confirmarla es de $${depositAmount}.\n\nPara confirmar tu reserva, aboná la seña acá: ${initPoint}`;
     } else {
       botReply = `Uy, parece que alguien acaba de reservar la última habitación disponible para esas fechas mientras hablábamos. ¿Te gustaría buscar otra fecha?`;
       this.bookingProcessService.markInProgress(activeBooking);

@@ -54,7 +54,7 @@ export class RagService {
 
     const chatModel = this.genAI.getGenerativeModel({ 
       model: 'gemini-flash-lite-latest',
-      systemInstruction: `Eres Chamber, el asistente virtual del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nFECHA ACTUAL: ${formatDate(new Date())}.\n\nREGLA PARA RESERVAS: Si faltan datos, pregúntalos. Las fechas siempre deben pedirse y enviarse en formato DD-MM-YYYY. Si el usuario no menciona el año, asumí que es el año actual (según la FECHA ACTUAL); si la fecha resultante ya pasó este año, asumí el año siguiente. Cuando tengas los 3 (entrada, salida, capacidad), usa 'search_availability'. Si ya le ofreciste una habitación y el usuario acepta o confirma explícitamente, usa 'confirm_reservation'.\n\nCONTEXTO:\n${contextText}`,
+      systemInstruction: `Eres Chamber, el asistente virtual del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nFECHA ACTUAL: ${formatDate(new Date())}.\n\nREGLA PARA RESERVAS: Si faltan datos, pregúntalos. Las fechas siempre deben pedirse y enviarse en formato DD-MM-YYYY. Si el usuario no menciona el año, asumí que es el año actual (según la FECHA ACTUAL); si la fecha resultante ya pasó este año, asumí el año siguiente. Cuando tengas los 3 (entrada, salida, capacidad), usa 'search_availability'. Si ya le ofreciste una habitación y el usuario acepta o confirma explícitamente que quiere reservarla, pedile (si todavía no los tenés) el nombre completo y el DNI del huésped que se aloja antes de confirmar nada; recién cuando tengas esos dos datos usa 'confirm_reservation'. No pidas nombre ni DNI antes de que el usuario haya confirmado que quiere reservar.\n\nCONTEXTO:\n${contextText}`,
       tools: [{
         functionDeclarations: [
           {
@@ -72,7 +72,15 @@ export class RagService {
           },
           {
             name: 'confirm_reservation',
-            description: 'Llama a esta función ÚNICAMENTE cuando el usuario acepte confirmar la reserva previamente ofrecida.',
+            description: 'Llama a esta función ÚNICAMENTE cuando el usuario acepte confirmar la reserva previamente ofrecida Y ya te haya dado su nombre completo y su DNI.',
+            parameters: {
+              type: SchemaType.OBJECT,
+              properties: {
+                fullName: { type: SchemaType.STRING, description: 'Nombre completo del huésped que se aloja.' },
+                dni: { type: SchemaType.STRING, description: 'Número de DNI del huésped, solo dígitos.' }
+              },
+              required: ['fullName', 'dni']
+            }
           }
         ]
       }]
@@ -88,7 +96,7 @@ export class RagService {
       const { name, args } = functionCall; 
       
       if (name === 'search_availability') return { action: ChatAction.SEARCH_AVAILABILITY, datos: args };
-      if (name === 'confirm_reservation') return { action: ChatAction.CONFIRM_RESERVATION };
+      if (name === 'confirm_reservation') return { action: ChatAction.CONFIRM_RESERVATION, datos: args };
     }
 
     return { action: ChatAction.REPLY, texto: chatResponse.response.text() };

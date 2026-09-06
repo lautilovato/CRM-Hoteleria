@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { AppModule } from './../src/app.module';
 import { TelegramUpdate } from '../src/modules/telegram/telegram.update';
 import { RagService, ChatAction } from '../src/modules/rag/rag.service';
+import { PaymentService } from '../src/modules/payment/payment.service';
 import { MikroORM, EntityManager } from '@mikro-orm/core';
 import { Room, RoomStatus } from '../src/infrastructure/database/entities/Room.entity';
 import { RoomCategory } from '../src/infrastructure/database/entities/RoomCategory.entity';
@@ -20,14 +21,19 @@ describe('Telegram Flow (e2e)', () => {
 
   beforeAll(async () => {
     ragServiceMock = { askQuestion: jest.fn() };
+    const paymentServiceMock = {
+      createPreference: jest.fn().mockResolvedValue({ preferenceId: 'pref-e2e', initPoint: 'https://mp.example/pref-e2e' }),
+    };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(RagService)
       .useValue(ragServiceMock)
+      .overrideProvider(PaymentService)
+      .useValue(paymentServiceMock)
       .overrideProvider(getBotToken())
-      .useValue({ launch: jest.fn(), stop: jest.fn(), on: jest.fn(), start: jest.fn(), use: jest.fn() })
+      .useValue({ launch: jest.fn(), stop: jest.fn(), on: jest.fn(), start: jest.fn(), use: jest.fn(), telegram: { sendMessage: jest.fn() } })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -94,17 +100,22 @@ describe('Telegram Flow (e2e)', () => {
 
     ragServiceMock.askQuestion.mockResolvedValueOnce({
       texto: '',
-      action: ChatAction.CONFIRM_RESERVATION
+      action: ChatAction.CONFIRM_RESERVATION,
+      datos: { fullName: 'Juan Pérez', dni: '30111222' }
     });
 
     await telegramUpdate.onMessage('Perfecto, confirmalo', mockCtx);
 
-    em.clear(); 
+    em.clear();
 
     const reservation = await em.findOne(Reservation, { telegramUserId: '999888777' }, { populate: ['room'] });
     expect(reservation).toBeDefined();
-    expect(Number(reservation?.totalAmount)).toBe(60000); 
+    expect(Number(reservation?.totalAmount)).toBe(60000);
     expect(reservation?.room.roomNumber).toBe(uniqueRoomNumber);
+    expect(reservation?.guestFullName).toBe('Juan Pérez');
+    expect(reservation?.guestDni).toBe('30111222');
+    expect(reservation?.mpPreferenceId).toBe('pref-e2e');
+    expect(reservation?.mpInitPoint).toBe('https://mp.example/pref-e2e');
 
     const completedBooking = await em.findOne(BookingProcess, { id: booking?.id });
     expect(completedBooking?.step).toBe('COMPLETED');

@@ -91,12 +91,15 @@ describe('RagService', () => {
       expect(result).toEqual({ action: ChatAction.SEARCH_AVAILABILITY, datos });
     });
 
-    it('devuelve CONFIRM_RESERVATION cuando la function call es confirm_reservation', async () => {
-      chatModelMock.generateContent.mockResolvedValue(mockChatResponse([{ name: 'confirm_reservation' }]));
+    it('devuelve CONFIRM_RESERVATION con los datos del huésped cuando la function call es confirm_reservation', async () => {
+      const datos = { fullName: 'Juan Pérez', dni: '30111222' };
+      chatModelMock.generateContent.mockResolvedValue(
+        mockChatResponse([{ name: 'confirm_reservation', args: datos }])
+      );
 
       const result = await service.askQuestion('Sí, confirmo');
 
-      expect(result).toEqual({ action: ChatAction.CONFIRM_RESERVATION });
+      expect(result).toEqual({ action: ChatAction.CONFIRM_RESERVATION, datos });
     });
 
     it('incluye la fecha actual en las instrucciones del sistema', async () => {

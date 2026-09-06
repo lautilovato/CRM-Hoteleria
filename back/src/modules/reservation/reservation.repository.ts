@@ -10,6 +10,8 @@ interface CreateReservationData {
   checkOut: Date;
   totalAmount: number;
   depositAmount: number;
+  guestFullName: string;
+  guestDni: string;
 }
 
 @Injectable()
