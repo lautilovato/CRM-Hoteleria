@@ -18,6 +18,9 @@ describe('Telegram Flow (e2e)', () => {
   let em: EntityManager;
   let ragServiceMock: any;
   let uniqueRoomNumber: string;
+  let seededCategory: RoomCategory;
+  let seededRoom: Room;
+  const testTelegramUserIds = ['999888777', '111222333'];
 
   beforeAll(async () => {
     ragServiceMock = { askQuestion: jest.fn() };
@@ -47,29 +50,28 @@ describe('Telegram Flow (e2e)', () => {
     const uniqueSuffix = Date.now();
     uniqueRoomNumber = `101-${uniqueSuffix}`;
     
-    const category = em.create(RoomCategory, { 
-      name: `Suite E2E-${uniqueSuffix}`, 
-      capacity: 2, 
-      basePrice: 15000 
+    seededCategory = em.create(RoomCategory, {
+      name: `Suite E2E-${uniqueSuffix}`,
+      capacity: 2,
+      basePrice: 15000
     });
-    
-    em.create(Room, { 
-      roomNumber: uniqueRoomNumber, 
-      category, 
-      status: RoomStatus.ACTIVE 
+
+    seededRoom = em.create(Room, {
+      roomNumber: uniqueRoomNumber,
+      category: seededCategory,
+      status: RoomStatus.ACTIVE
     });
-    
+
     await em.flush();
   });
 
   afterAll(async () => {
     try {
-      await em.nativeDelete(Reservation, {});
-      await em.nativeDelete(BookingProcess, {});
-      await em.nativeDelete(Room, {});
-      await em.nativeDelete(RoomCategory, {});
-      
-      await em.nativeDelete(ChatMessage, {});
+      await em.nativeDelete(Reservation, { telegramUserId: { $in: testTelegramUserIds } });
+      await em.nativeDelete(BookingProcess, { telegramUserId: { $in: testTelegramUserIds } });
+      await em.nativeDelete(ChatMessage, { telegramUserId: { $in: testTelegramUserIds } });
+      await em.nativeDelete(Room, { id: seededRoom.id });
+      await em.nativeDelete(RoomCategory, { id: seededCategory.id });
 
       if (app) await app.close();
     } catch (e) {

@@ -23,6 +23,18 @@ Este documento contiene la guía de los comandos más utilizados para el desarro
 - **`npx mikro-orm migration:up`**
   Ejecuta todas las migraciones pendientes para actualizar el esquema de la base de datos al estado más reciente.
 
+## 🌐 Webhook de Mercado Pago (ngrok)
+
+- **`ngrok http 3000`**
+  Levanta un túnel público hacia el backend local (puerto 3000), necesario para que Mercado Pago pueda entregar las notificaciones del webhook (`/payment/webhook`) durante el desarrollo local.
+
+  Pasos para probar pagos localmente:
+  1. Iniciá la aplicación (`npm start dev`).
+  2. Corré `ngrok http 3000` y copiá la URL pública `https://...ngrok-free.dev` que te muestra.
+  3. Pegá esa URL en la variable `APP_BASE_URL` del archivo `.env`.
+  4. Configurá `https://<tu-url-de-ngrok>/payment/webhook` como notification URL en el panel de Mercado Pago (sección **Webhooks** de tu aplicación).
+  5. Reiniciá la aplicación para que tome el nuevo `APP_BASE_URL`.
+
 ## 🧪 Pruebas (Testing)
 
 - **`npm run test`**

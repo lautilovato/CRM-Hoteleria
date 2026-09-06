@@ -15,6 +15,8 @@ describe('Payment Webhook (e2e)', () => {
   let em: EntityManager;
   let paymentServiceMock: any;
   let reservationId: string;
+  let seededCategoryId: string;
+  let seededRoomId: string;
 
   beforeAll(async () => {
     paymentServiceMock = {
@@ -58,13 +60,15 @@ describe('Payment Webhook (e2e)', () => {
 
     await em.flush();
     reservationId = reservation.id;
+    seededCategoryId = category.id;
+    seededRoomId = room.id;
   });
 
   afterAll(async () => {
     try {
-      await em.nativeDelete(Reservation, {});
-      await em.nativeDelete(Room, {});
-      await em.nativeDelete(RoomCategory, {});
+      await em.nativeDelete(Reservation, { id: reservationId });
+      await em.nativeDelete(Room, { id: seededRoomId });
+      await em.nativeDelete(RoomCategory, { id: seededCategoryId });
 
       if (app) await app.close();
     } catch (e) {
