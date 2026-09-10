@@ -5,14 +5,19 @@ import { InjectBot } from 'nestjs-telegraf';
 import { Telegraf, Context } from 'telegraf';
 import { Reservation } from '../../infrastructure/database/entities/Reservation.entity';
 import { ConfirmReservationDto } from '../reservation/dto/confirmReservation.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { PaymentRepository } from './payment.repository';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class PaymentService {
   private client: MercadoPagoConfig;
   private webhookSecret: string;
+  private readonly logger = new Logger(PaymentService.name);
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly paymentRepository: PaymentRepository,
     @InjectBot() private readonly bot: Telegraf<Context>,
   ) {
     const accessToken = this.configService.get<string>('MERCADOPAGO_ACCESS_TOKEN');
@@ -23,6 +28,21 @@ export class PaymentService {
 
     this.webhookSecret = webhookSecret;
     this.client = new MercadoPagoConfig({ accessToken });
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async releaseExpiredReservations(): Promise<void> {
+    const expirationMinutes = 30;
+    const cutoffDate = new Date(Date.now() - expirationMinutes * 60 * 1000);
+
+    const expired = await this.paymentRepository.findExpiredPendingReservations(cutoffDate);
+
+    if (expired.length === 0) {
+      return;
+    }
+
+    await this.paymentRepository.cancelExpiredReservations(expired);
+    this.logger.log(`Canceladas ${expired.length} reserva(s) vencidas por falta de pago`);
   }
 
   async createPreference(reservation: Reservation, guestData: ConfirmReservationDto): Promise<{ preferenceId: string; initPoint: string }> {
