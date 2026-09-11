@@ -99,7 +99,7 @@ describe('RagService', () => {
 
       const result = await service.askQuestion('Sí, confirmo');
 
-      expect(result).toEqual({ action: ChatAction.CONFIRM_RESERVATION, datos });
+      expect(result).toEqual({ action: ChatAction.CONFIRM_RESERVATION, datos, texto: '' });
     });
 
     it('incluye la fecha actual en las instrucciones del sistema', async () => {

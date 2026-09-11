@@ -55,15 +55,10 @@ export class TelegramUpdate {
 
       await this.em.flush();
 
-      try {
-        await ctx.reply(botReply, { parse_mode: undefined });
-      } catch (replyError) {
-        this.logger.error(`Falló el envío a Telegram (los datos ya se guardaron bien): ${replyError}`);
-        await ctx.reply(botReply.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&'));
-      }
+      await ctx.reply(botReply);
 
     } catch (error: any) {
-        console.error('Error:', error);
+        this.logger.error(`Error procesando el mensaje: ${error}`);
         if (error?.status === 503) {
           await ctx.reply('El sistema está experimentando alta demanda en este segundo. Dame un minutito y volvé a escribirme.');
         } else {
