@@ -8,6 +8,7 @@ import { ConfirmReservationDto } from '../reservation/dto/confirmReservation.dto
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentRepository } from './payment.repository';
 import { Logger } from '@nestjs/common';
+import PDFDocument = require('pdfkit');
 
 @Injectable()
 export class PaymentService {
@@ -65,6 +66,10 @@ export class PaymentService {
         },
         external_reference: reservation.id,
         notification_url: baseUrl ? `${baseUrl}/payment/webhook` : undefined,
+        back_urls: {
+          success: baseUrl ? `${baseUrl}/payment/success?reservationId=${reservation.id}` : undefined,
+        },
+        auto_return: 'approved',
       },
     });
 
@@ -101,4 +106,32 @@ export class PaymentService {
       `¡Recibimos tu pago! Tu reserva del ${checkInText} al ${checkOutText} quedó confirmada. ¡Te esperamos!`,
     );
   }
+
+
+  async generateReceiptPDF(reservationId: string): Promise<Buffer> {
+    const reservation = await this.paymentRepository.findReservationById(reservationId);
+    if (!reservation) throw new Error('Reserva no encontrada');
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50 });
+      const buffers: Buffer[] = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      doc.fontSize(20).text('Comprobante de Reserva', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(12).text(`ID de Reserva: ${reservation.id}`);
+      doc.text(`Huésped: ${reservation.guestFullName} (DNI: ${reservation.guestDni})`);
+      doc.text(`Habitación: ${reservation.room?.category?.name ?? 'Estándar'}`);
+      doc.text(`Check-in: ${new Date(reservation.checkIn).toLocaleDateString('es-AR')}`);
+      doc.text(`Check-out: ${new Date(reservation.checkOut).toLocaleDateString('es-AR')}`);
+      doc.moveDown();
+      doc.fontSize(14).text(`Seña abonada: $${reservation.depositAmount} ARS`, { underline: true });
+
+      doc.end();
+    });
+  }
+  
 }
