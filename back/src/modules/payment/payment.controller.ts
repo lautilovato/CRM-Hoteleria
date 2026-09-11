@@ -5,12 +5,6 @@ import { ReservationSummaryDto } from './dto/reservationSummary.dto';
 import { Response } from 'express';
 import { Query, Res } from '@nestjs/common';
 
-interface MercadoPagoWebhookBody {
-  type?: string;
-  action?: string;
-  data?: { id: string };
-}
-
 @Controller('payment')
 export class PaymentController {
   private readonly logger = new Logger(PaymentController.name);
@@ -20,13 +14,44 @@ export class PaymentController {
     private readonly paymentRepository: PaymentRepository,
   ) {}
 
+  private async confirmPayment(paymentId: string, source: string): Promise<void> {
+    const payment = await this.paymentService.getPayment(paymentId);
+
+    if (!payment?.id || !payment?.external_reference) {
+      this.logger.warn(`[${source}] Pago ${paymentId} sin external_reference; se ignora`);
+      return;
+    }
+
+    if (payment.status !== 'approved') {
+      this.logger.log(`[${source}] Pago ${payment.id} en estado "${payment.status}"; no se confirma`);
+      return;
+    }
+
+    const reservation = await this.paymentRepository.findReservationById(payment.external_reference);
+    if (!reservation) {
+      this.logger.warn(`[${source}] Reserva no encontrada: external_reference=${payment.external_reference}`);
+      return;
+    }
+
+    const confirmed = await this.paymentRepository.confirmIfPending(reservation.id, String(payment.id));
+    if (!confirmed) {
+      this.logger.log(`[${source}] Reserva ${reservation.id} ya estaba confirmada; no se vuelve a notificar`);
+      return;
+    }
+
+    await this.paymentService.notifyPaymentApproved(reservation.telegramUserId, reservation.checkIn, reservation.checkOut);
+    this.logger.log(`[${source}] Reserva ${reservation.id} confirmada con el pago ${payment.id}`);
+  }
+
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
     @Body() body: any,
     @Query() query: any,
+    @Headers('x-signature') xSignature?: string,
+    @Headers('x-request-id') xRequestId?: string,
   ) {
-    const dataId = body?.data?.id || query?.id || body?.id;
+    const dataId = query?.['data.id'] || body?.data?.id || query?.id || body?.id;
     const eventType = body?.type || query?.topic || body?.topic;
 
     if (!dataId) {
@@ -39,28 +64,13 @@ export class PaymentController {
       return { received: true };
     }
 
-    this.logger.log(`✅ Procesando webhook de pago ID: ${dataId}`);
-
-    const payment = await this.paymentService.getPayment(dataId);
-    
-    if (!payment.external_reference || !payment.id) {
-      return { received: true };
+    if (xSignature && !this.paymentService.verifyWebhookSignature(xSignature, xRequestId ?? '', String(dataId))) {
+      this.logger.warn(`Webhook rechazado: firma inválida para el pago ${dataId}`);
+      throw new UnauthorizedException('Firma de webhook inválida');
     }
 
-    const reservation = await this.paymentRepository.findReservationById(payment.external_reference);
-    if (!reservation) {
-      this.logger.warn(`Reserva no encontrada: external_reference=${payment.external_reference}`);
-      return { received: true };
-    }
-
-    if (reservation.mpPaymentId === String(payment.id)) {
-      return { received: true };
-    }
-
-    if (payment.status === 'approved') {
-      await this.paymentRepository.markConfirmed(reservation, String(payment.id));
-      await this.paymentService.notifyPaymentApproved(reservation.telegramUserId, reservation.checkIn, reservation.checkOut);
-    }
+    this.logger.log(`Procesando webhook de pago ID: ${dataId}`);
+    await this.confirmPayment(String(dataId), 'webhook');
 
     return { received: true };
   }
@@ -76,8 +86,21 @@ export class PaymentController {
   }
 
   @Get('success')
-    getSuccessPage(@Query('reservationId') reservationId: string) {
-      return `
+  async getSuccessPage(
+    @Query('reservationId') reservationId: string,
+    @Query('payment_id') paymentId?: string,
+    @Query('collection_id') collectionId?: string,
+  ) {
+    const mpPaymentId = paymentId || collectionId;
+    if (mpPaymentId && mpPaymentId !== 'null') {
+      try {
+        await this.confirmPayment(mpPaymentId, 'back_url');
+      } catch (error) {
+        this.logger.error(`No se pudo confirmar el pago ${mpPaymentId} desde el back_url`, error as Error);
+      }
+    }
+
+    return `
         <!DOCTYPE html>
         <html lang="es">
         <head>
@@ -98,22 +121,21 @@ export class PaymentController {
         </body>
         </html>
       `;
-    }
+  }
 
-    @Get('receipt/:id')
-    async downloadReceipt(@Param('id') id: string, @Res() res: Response) {
-      try {
-        const buffer = await this.paymentService.generateReceiptPDF(id);
-        res.set({
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="reserva-${id}.pdf"`,
-          'Content-Length': buffer.length,
-        });
-        res.end(buffer);
-      } catch (error) {
-        console.error('ERROR REAL DEL PDF:', error);
-        throw new NotFoundException('No se pudo generar el comprobante');
-      }
+  @Get('receipt/:id')
+  async downloadReceipt(@Param('id') id: string, @Res() res: Response) {
+    try {
+      const buffer = await this.paymentService.generateReceiptPDF(id);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="reserva-${id}.pdf"`,
+        'Content-Length': buffer.length,
+      });
+      res.end(buffer);
+    } catch (error) {
+      this.logger.error(`No se pudo generar el comprobante de la reserva ${id}`, error as Error);
+      throw new NotFoundException('No se pudo generar el comprobante');
     }
-
+  }
 }
