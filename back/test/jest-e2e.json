@@ -14,8 +14,9 @@
       }
     ]
   },
+  "setupFilesAfterEnv": ["<rootDir>/test/setup-database.ts"],
   "testTimeout": 30000,
   "transformIgnorePatterns": [
-    "<rootDir>/node_modules/(?!(@mikro-orm|kysely)/.*)"
+    "<rootDir>/node_modules/(?!(@mikro-orm|kysely|@nestjs/schedule)/.*)"
   ]
 }
