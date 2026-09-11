@@ -1,6 +1,7 @@
 import { Update, Ctx, Start, On, Message } from 'nestjs-telegraf';
 import { Context } from 'telegraf';
 import { EntityManager } from '@mikro-orm/core';
+import { Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { RagService, ChatAction } from '../rag/rag.service';
@@ -13,6 +14,8 @@ import { BookingProcess, BookingProcessStep } from '../../infrastructure/databas
 
 @Update()
 export class TelegramUpdate {
+  private readonly logger = new Logger(TelegramUpdate.name);
+
   constructor(
     private readonly ragService: RagService,
     private readonly reservationService: ReservationService,
@@ -44,13 +47,20 @@ export class TelegramUpdate {
 
       const aiResponse = await this.ragService.askQuestion(text, activeBooking, previousMessages.reverse(), lastCompletedBooking);
 
-      const botReply = await this.resolveBotReply(aiResponse, telegramUserId, activeBooking);
+      const botReply = (await this.resolveBotReply(aiResponse, telegramUserId, activeBooking))
+        || 'Disculpá, no pude procesar tu mensaje. ¿Podés reformularlo?';
 
       const botMessage = this.em.create(ChatMessage, { telegramUserId, role: MessageRole.BOT, content: botReply });
       this.em.persist(botMessage);
 
       await this.em.flush();
-      await ctx.reply(botReply);
+
+      try {
+        await ctx.reply(botReply, { parse_mode: undefined });
+      } catch (replyError) {
+        this.logger.error(`Falló el envío a Telegram (los datos ya se guardaron bien): ${replyError}`);
+        await ctx.reply(botReply.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&'));
+      }
 
     } catch (error: any) {
         console.error('Error:', error);
@@ -69,7 +79,7 @@ export class TelegramUpdate {
       case ChatAction.CONFIRM_RESERVATION:
         return this.resolveConfirmReservation(aiResponse.datos, telegramUserId, activeBooking, aiResponse.texto);
       default:
-        return aiResponse.texto;
+        return aiResponse.texto || 'Disculpá, no entendí bien eso. ¿Podés reformularlo?';
     }
   }
 
@@ -86,7 +96,7 @@ export class TelegramUpdate {
 
   private async resolveConfirmReservation(datos: unknown, telegramUserId: string, activeBooking: BookingProcess | null, fallbackReply: string): Promise<string> {
     if (!activeBooking || activeBooking.step !== BookingProcessStep.PENDING_CONFIRMATION) {
-      return fallbackReply;
+      return fallbackReply || 'Ya procesamos esa reserva. Si necesitás algo más, decime.';
     }
 
     const confirmDto = plainToInstance(ConfirmReservationDto, datos);

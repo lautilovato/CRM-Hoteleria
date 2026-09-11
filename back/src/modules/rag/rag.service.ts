@@ -96,7 +96,9 @@ export class RagService {
       const { name, args } = functionCall; 
       
       if (name === 'search_availability') return { action: ChatAction.SEARCH_AVAILABILITY, datos: args };
-      if (name === 'confirm_reservation') return { action: ChatAction.CONFIRM_RESERVATION, datos: args };
+      if (name === 'confirm_reservation') {
+        return { action: ChatAction.CONFIRM_RESERVATION, datos: args, texto: chatResponse.response.text() };
+      }
     }
 
     return { action: ChatAction.REPLY, texto: chatResponse.response.text() };
