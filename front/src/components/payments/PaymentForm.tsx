@@ -1,7 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { PrepaymentFormProps } from '@/config/types';
 
-type Status = 'idle' | 'processing' | 'confirmed';
+/**
+ * Estado local del formulario. Ojo: acá NO vive el "pagado". Que la seña esté abonada lo dice
+ * solamente la reserva en la base (prop `alreadyPaid`), nunca el hecho de haber tocado el botón.
+ */
+type Status = 'idle' | 'redirecting';
 
 const formatCurrency = (value: number, currency: string) =>
   new Intl.NumberFormat('es-AR', {
@@ -11,6 +15,8 @@ const formatCurrency = (value: number, currency: string) =>
   }).format(value);
 
 const formatDate = (iso: string) => {
+  // Las fechas llegan como YYYY-MM-DD: sin la hora el navegador las interpreta
+  // en UTC y en AR (UTC-3) terminaría mostrando el día anterior.
   const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '—';
 
@@ -35,9 +41,22 @@ export default function PaymentForm({
   alreadyPaid = false,
   onConfirmedPayment,
 }: PrepaymentFormProps) {
-  const [status, setStatus] = useState<Status>(alreadyPaid ? 'confirmed' : 'idle');
+  const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   const currency = reservation.currency ?? 'ARS';
+
+  // La única fuente de verdad del pago es la reserva que trajimos de la API.
+  const isPaid = alreadyPaid;
+  const isRedirecting = status === 'redirecting';
+
+  useEffect(() => {
+    // Al volver con el botón "atrás" el navegador puede restaurar la página desde el bfcache con
+    // el estado JS congelado en "redirecting". Como el huésped está de nuevo acá, se puede pagar.
+    const resetOnReturn = () => setStatus('idle');
+
+    window.addEventListener('pageshow', resetOnReturn);
+    return () => window.removeEventListener('pageshow', resetOnReturn);
+  }, []);
 
   const remainingBalance = useMemo(
     () => Math.max(reservation.totalStay - reservation.advancePayment, 0),
@@ -56,15 +75,16 @@ export default function PaymentForm({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (status !== 'idle') return;
+    if (isPaid || isRedirecting) return;
 
-    setStatus('processing');
+    setStatus('redirecting');
     setError(null);
     try {
       await onConfirmedPayment?.(reservation);
-      setStatus('confirmed');
+      // Si salió bien estamos yéndonos a Mercado Pago, así que el formulario queda en
+      // "redirecting" a propósito: dar por pagada la seña acá sería mentirle al huésped.
     } catch (paymentError) {
-      console.error('No se pudo confirmar el pago de la seña', paymentError);
+      console.error('No se pudo iniciar el pago de la seña', paymentError);
       setError(
         paymentError instanceof Error
           ? paymentError.message
@@ -74,10 +94,9 @@ export default function PaymentForm({
     }
   };
 
-  const isConfirmed = status === 'confirmed';
-
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-shell px-4 py-10">
+      {/* resplandor dorado detrás de la card, en referencia al orbe del AI Assistant del mockup */}
       <div
         className="pointer-events-none absolute h-72 w-72 rounded-full bg-gold/20 blur-3xl"
         aria-hidden
@@ -90,21 +109,23 @@ export default function PaymentForm({
         {/* encabezado */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-poppins text-sm font-semibold text-goldLight/80">OmniDesk</p>
+            <p className="font-poppins text-sm font-semibold text-goldLight/80">Chamber</p>
             <h1 className="mt-1 font-poppins text-2xl font-bold text-goldLight">
               Confirmá tu reserva
             </h1>
           </div>
           <span
             className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${
-              isConfirmed ? 'bg-success/20 text-successText' : 'bg-gold/15 text-goldLight'
+              isPaid ? 'bg-success/20 text-successText' : 'bg-gold/15 text-goldLight'
             }`}
           >
-            {isConfirmed ? 'Seña confirmada' : 'Pendiente de seña'}
+            {isPaid ? 'Seña confirmada' : 'Pendiente de seña'}
           </span>
         </div>
         <p className="mt-2 text-sm leading-relaxed text-textMuted">
-          Revisá los datos de tu estadía y aboná la seña para asegurar la habitación.
+          {isPaid
+            ? 'Ya recibimos tu seña: la habitación está confirmada a tu nombre.'
+            : 'Revisá los datos de tu estadía y aboná la seña para asegurar la habitación.'}
         </p>
 
         {/* datos de la reserva */}
@@ -167,13 +188,13 @@ export default function PaymentForm({
         {/* acción */}
         <button
           type="submit"
-          disabled={status !== 'idle'}
+          disabled={isPaid || isRedirecting}
           className="mt-6 w-full rounded-full bg-gold py-3 text-sm font-semibold text-shell transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
-          {status === 'processing'
-            ? 'Procesando pago…'
-            : isConfirmed
-              ? 'Seña abonada ✓'
+          {isPaid
+            ? 'Seña abonada ✓'
+            : isRedirecting
+              ? 'Te llevamos a Mercado Pago…'
               : `Pagar seña de ${formatCurrency(reservation.advancePayment, currency)}`}
         </button>
 

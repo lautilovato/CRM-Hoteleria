@@ -19,31 +19,42 @@ export default function PaymentPage() {
   // la pantalla sigue en "cargando" (incluso si el link cambia de reserva).
   const isLoading = Boolean(reservationId) && load.id !== reservationId;
 
-  useEffect(() => {
+  const fetchSummary = useCallback(() => {
     if (!reservationId) return;
 
-    let isActive = true;
-
     getReservationSummary(reservationId)
-      .then((data) => {
-        if (isActive) setLoad({ id: reservationId, summary: data, error: null });
-      })
+      .then((data) => setLoad({ id: reservationId, summary: data, error: null }))
       .catch((loadError: unknown) => {
         console.error('No se pudo cargar la reserva', loadError);
-        if (isActive) {
-          setLoad({
-            id: reservationId,
-            summary: null,
-            error: 'No encontramos esa reserva. Revisá el link que te enviamos.',
-          });
-        }
+        setLoad({
+          id: reservationId,
+          summary: null,
+          error: 'No encontramos esa reserva. Revisá el link que te enviamos.',
+        });
       });
-
-    // Descarta la respuesta si el efecto se vuelve a disparar (StrictMode / cambio de id).
-    return () => {
-      isActive = false;
-    };
   }, [reservationId]);
+
+  useEffect(fetchSummary, [fetchSummary]);
+
+  useEffect(() => {
+    // El estado del pago lo define la reserva en la base, no lo que haya hecho esta pantalla.
+    // Cuando el huésped vuelve de Mercado Pago (pestaña que se vuelve visible) o pega la vuelta
+    // con el botón "atrás" (restaurada desde el bfcache), releemos para ver cómo quedó.
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') fetchSummary();
+    };
+    const refreshOnRestore = (event: PageTransitionEvent) => {
+      if (event.persisted) fetchSummary();
+    };
+
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    window.addEventListener('pageshow', refreshOnRestore);
+
+    return () => {
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+      window.removeEventListener('pageshow', refreshOnRestore);
+    };
+  }, [fetchSummary]);
 
   const { summary } = load;
 
