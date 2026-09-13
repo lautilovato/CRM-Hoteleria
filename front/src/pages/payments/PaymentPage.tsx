@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import type { ReservationSummary } from '@/config/types';
 import { getReservationSummary, goToCheckout, summaryToFormData } from '@/services/payment.service';
 import PaymentForm from '../../components/payments/PaymentForm';
+import PostPayment from '@/components/payments/PostPayment';
 
 /** Resultado de la última carga, junto al id al que corresponde. */
 interface LoadState {
@@ -64,18 +65,18 @@ export default function PaymentPage() {
 
   if (!reservationId) {
     return (
-      <StatusScreen
+      <PostPayment
         title="Falta el código de reserva"
         detail="Entrá desde el link que te mandamos por Telegram para ver tu reserva."
       />
     );
   }
 
-  if (isLoading) return <StatusScreen title="Cargando tu reserva…" />;
+  if (isLoading) return <PostPayment title="Cargando tu reserva…" />;
 
   if (load.error || !summary) {
     return (
-      <StatusScreen
+      <PostPayment
         title="No pudimos mostrar tu reserva"
         detail={load.error ?? 'Intentá de nuevo en unos minutos.'}
       />
@@ -84,7 +85,7 @@ export default function PaymentPage() {
 
   if (summary.status === 'CANCELLED') {
     return (
-      <StatusScreen
+      <PostPayment
         title="Esta reserva fue cancelada"
         detail="El tiempo para abonar la seña venció. Escribinos por Telegram para reservar de nuevo."
       />
@@ -97,16 +98,5 @@ export default function PaymentPage() {
       alreadyPaid={summary.status === 'CONFIRMED'}
       onConfirmedPayment={handleConfirmedPayment}
     />
-  );
-}
-
-function StatusScreen({ title, detail }: { title: string; detail?: string }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-shell px-4">
-      <div className="w-full max-w-md rounded-3xl border border-goldLight/25 bg-card p-8 text-center">
-        <h1 className="font-poppins text-xl font-semibold text-goldLight">{title}</h1>
-        {detail && <p className="mt-2 text-sm text-textMuted">{detail}</p>}
-      </div>
-    </div>
   );
 }

@@ -2,6 +2,7 @@ import { Controller, Post, Get, Param, Body, Headers, HttpCode, HttpStatus, Unau
 import { PaymentService } from './payment.service';
 import { PaymentRepository } from './payment.repository';
 import { ReservationSummaryDto } from './dto/reservationSummary.dto';
+import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { Query, Res } from '@nestjs/common';
 
@@ -12,6 +13,7 @@ export class PaymentController {
   constructor(
     private readonly paymentService: PaymentService,
     private readonly paymentRepository: PaymentRepository,
+    private readonly configService: ConfigService,
   ) {}
 
   private async confirmPayment(paymentId: string, source: string): Promise<void> {
@@ -87,7 +89,8 @@ export class PaymentController {
 
   @Get('success')
   async getSuccessPage(
-    @Query('reservationId') reservationId: string,
+    @Res() res: Response,
+    @Query('reservationId') reservationId?: string,
     @Query('payment_id') paymentId?: string,
     @Query('collection_id') collectionId?: string,
   ) {
@@ -100,36 +103,17 @@ export class PaymentController {
       }
     }
 
-    return `
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Reserva Confirmada</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-        </head>
-        <body class="bg-gray-100 flex items-center justify-center h-screen">
-          <div class="bg-white p-8 rounded-lg shadow-md text-center max-w-sm">
-            <div class="text-green-500 mb-4">
-              <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            </div>
-            <h1 class="text-2xl font-bold text-gray-800 mb-2">¡Salió todo ok!</h1>
-            <p class="text-gray-600 mb-6">Tu pago se procesó correctamente. Ya podés cerrar esta página.</p>
-            ${reservationId ? `<a href="/payment/receipt/${reservationId}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Descargar Comprobante PDF</a>` : ''}
-          </div>
-        </body>
-        </html>
-      `;
+    const frontendBaseUrl = this.configService.getOrThrow<string>('FRONTEND_BASE_URL');
+    res.redirect(reservationId ? `${frontendBaseUrl}/payment/success/${reservationId}` : `${frontendBaseUrl}/payment/success`);
   }
 
   @Get('receipt/:id')
-  async downloadReceipt(@Param('id') id: string, @Res() res: Response) {
+  async downloadReceipt(@Param('id') id: string, @Res() res: Response, @Query('inline') inline?: string) {
     try {
       const buffer = await this.paymentService.generateReceiptPDF(id);
       res.set({
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="reserva-${id}.pdf"`,
+        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="reserva-${id}.pdf"`,
         'Content-Length': buffer.length,
       });
       res.end(buffer);

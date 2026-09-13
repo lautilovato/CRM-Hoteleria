@@ -1,4 +1,4 @@
-import apiClient from '@/config/api';
+import apiClient, { API_BASE_URL } from '@/config/api';
 import type { PrepaymentFormData, ReservationSummary } from '@/config/types';
 
 /**
@@ -31,3 +31,10 @@ export const goToCheckout = (initPoint: string | null): void => {
 
   window.location.assign(initPoint);
 };
+
+/**
+ * URL del comprobante en PDF. Con `inline` el back lo sirve para verlo en el navegador (y de ahí
+ * imprimirlo); sin eso manda el header de descarga.
+ */
+export const getReceiptUrl = (reservationId: string, { inline = false } = {}): string =>
+  `${API_BASE_URL}/payment/receipt/${reservationId}${inline ? '?inline=1' : ''}`;

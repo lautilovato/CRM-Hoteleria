@@ -109,7 +109,7 @@ export default function PaymentForm({
         {/* encabezado */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-poppins text-sm font-semibold text-goldLight/80">Chamber</p>
+            <p className="font-poppins text-sm font-semibold text-goldLight/80">OmniDesk</p>
             <h1 className="mt-1 font-poppins text-2xl font-bold text-goldLight">
               Confirmá tu reserva
             </h1>
