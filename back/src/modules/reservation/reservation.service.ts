@@ -40,7 +40,7 @@ export class ReservationService {
       const totalAmount = roomFound.category.basePrice * nights;
       const depositAmount = totalAmount * DEPOSIT_PERCENTAGE;
 
-      botReply = `Tenemos disponibilidad en nuestra ${escapeHtml(roomFound.category.name)} del ${bookingData.checkIn} al ${bookingData.checkOut} por $${roomFound.category.basePrice} la noche.\n\nEl total de tu estadía (${nights} noches) sería de $${totalAmount}, con una seña del 30% de $${depositAmount} para reservarla.\n\n¿Querés que te la reserve? Te paso el link para abonar la seña.`;
+      botReply = `Tenemos disponibilidad en nuestra ${escapeHtml(roomFound.category.name)} del ${bookingData.checkIn} al ${bookingData.checkOut} por $${roomFound.category.basePrice} la noche.\n\nEl total de tu estadía (${nights} noches) sería de $${totalAmount}, con una seña del 30% de $${depositAmount} para reservarla.\n\n¿Querés que te la reserve?`;
     } else {
       this.bookingProcessService.markInProgress(booking);
       botReply = `Lamentablemente no nos quedan habitaciones para ${bookingData.capacity} personas en esas fechas. ¿Buscamos otras fechas?`;

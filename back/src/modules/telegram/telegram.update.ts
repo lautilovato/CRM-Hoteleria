@@ -17,6 +17,10 @@ import { escapeHtml } from './telegram.format';
 export class TelegramUpdate {
   private readonly logger = new Logger(TelegramUpdate.name);
 
+  /** Lo que respondemos cuando el huésped acepta la oferta pero todavía no tenemos sus datos. */
+  private static readonly ASK_GUEST_DATA =
+    'Genial, te la reservo. Para tomarla necesito el nombre completo y el DNI del huésped que se aloja.';
+
   constructor(
     private readonly ragService: RagService,
     private readonly reservationService: ReservationService,
@@ -89,7 +93,23 @@ export class TelegramUpdate {
       throw new Error(Object.values(firstError.constraints || {})[0] || 'Datos de búsqueda de disponibilidad inválidos');
     }
 
+    // Si ya le ofrecimos esa misma habitación y estamos esperando su respuesta, un "sí" no es un
+    // pedido de búsqueda nueva: es la aceptación. Repetir la oferta deja la charla en bucle.
+    if (this.isOfferAlreadyPending(activeBooking, searchDto)) {
+      this.logger.log(`Se ignora una búsqueda repetida de ${telegramUserId}: ya hay una oferta esperando confirmación`);
+      return TelegramUpdate.ASK_GUEST_DATA;
+    }
+
     return this.reservationService.searchAvailability(telegramUserId, activeBooking, searchDto);
+  }
+
+  /** La búsqueda repite, dato por dato, la oferta que el huésped todavía no respondió. */
+  private isOfferAlreadyPending(activeBooking: BookingProcess | null, searchDto: SearchAvailabilityDto): boolean {
+    return !!activeBooking
+      && activeBooking.step === BookingProcessStep.PENDING_CONFIRMATION
+      && activeBooking.checkIn === searchDto.checkIn
+      && activeBooking.checkOut === searchDto.checkOut
+      && activeBooking.capacity === searchDto.capacity;
   }
 
   private async resolveConfirmReservation(datos: unknown, telegramUserId: string, activeBooking: BookingProcess | null, fallbackReply: string): Promise<string> {
@@ -100,8 +120,14 @@ export class TelegramUpdate {
     const confirmDto = plainToInstance(ConfirmReservationDto, datos);
     const validationErrors = await validate(confirmDto);
     if (validationErrors.length > 0) {
-      const [firstError] = validationErrors;
-      throw new Error(Object.values(firstError.constraints || {})[0] || 'Datos de confirmación de reserva inválidos');
+      // Apenas el huésped acepta, el modelo a veces llama a confirm_reservation sin tener todavía
+      // el nombre o el DNI. Cortar con un error técnico ahí es peor que seguir pidiendo los datos.
+      const invalidFields = validationErrors.map((error) => error.property);
+      this.logger.warn(`Confirmación incompleta de ${telegramUserId}; faltan o son inválidos: ${invalidFields.join(', ')}`);
+
+      if (!invalidFields.includes('fullName')) return '¿Me pasás el DNI del huésped que se aloja? Solo los números, sin puntos.';
+      if (!invalidFields.includes('dni')) return '¿Me pasás el nombre completo del huésped que se aloja?';
+      return TelegramUpdate.ASK_GUEST_DATA;
     }
 
     return this.reservationService.confirmReservation(telegramUserId, activeBooking, confirmDto);
