@@ -10,6 +10,9 @@ import { PaymentRepository } from './payment.repository';
 import { Logger } from '@nestjs/common';
 import PDFDocument = require('pdfkit');
 
+/** Minutos que se le guarda la habitación al huésped antes de liberarla por falta de pago. */
+export const RESERVATION_HOLD_MINUTES = 30;
+
 @Injectable()
 export class PaymentService {
   private client: MercadoPagoConfig;
@@ -33,8 +36,7 @@ export class PaymentService {
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async releaseExpiredReservations(): Promise<void> {
-    const expirationMinutes = 30;
-    const cutoffDate = new Date(Date.now() - expirationMinutes * 60 * 1000);
+    const cutoffDate = new Date(Date.now() - RESERVATION_HOLD_MINUTES * 60 * 1000);
 
     const expired = await this.paymentRepository.findExpiredPendingReservations(cutoffDate);
 
@@ -103,7 +105,7 @@ export class PaymentService {
     const checkOutText = new Date(checkOut).toLocaleDateString('es-AR');
     await this.bot.telegram.sendMessage(
       telegramUserId,
-      `¡Recibimos tu pago! Tu reserva del ${checkInText} al ${checkOutText} quedó confirmada. ¡Te esperamos!`,
+      `✅ ¡Recibimos tu pago! Ahora sí, tu reserva del ${checkInText} al ${checkOutText} quedó CONFIRMADA. ¡Te esperamos!`,
     );
   }
 

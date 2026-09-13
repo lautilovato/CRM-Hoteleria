@@ -11,6 +11,7 @@ import { SearchAvailabilityDto } from '../bookingProcess/dto/searchAvailability.
 import { ConfirmReservationDto } from '../reservation/dto/confirmReservation.dto';
 import { ChatMessage, MessageRole } from '../../infrastructure/database/entities/ChatMessage.entity';
 import { BookingProcess, BookingProcessStep } from '../../infrastructure/database/entities/BookingProcess.entity';
+import { escapeHtml } from './telegram.format';
 
 @Update()
 export class TelegramUpdate {
@@ -55,7 +56,9 @@ export class TelegramUpdate {
 
       await this.em.flush();
 
-      await ctx.reply(botReply);
+      // El texto viaja como HTML para que el link de pago sea clickeable; todo lo que no armamos
+      // nosotros (texto de la IA) ya viene escapado desde resolveBotReply.
+      await ctx.reply(botReply, { parse_mode: 'HTML' });
 
     } catch (error: any) {
         this.logger.error(`Error procesando el mensaje: ${error}`);
@@ -72,9 +75,9 @@ export class TelegramUpdate {
       case ChatAction.SEARCH_AVAILABILITY:
         return this.resolveSearchAvailability(aiResponse.datos, telegramUserId, activeBooking);
       case ChatAction.CONFIRM_RESERVATION:
-        return this.resolveConfirmReservation(aiResponse.datos, telegramUserId, activeBooking, aiResponse.texto);
+        return this.resolveConfirmReservation(aiResponse.datos, telegramUserId, activeBooking, escapeHtml(aiResponse.texto || ''));
       default:
-        return aiResponse.texto || 'Disculpá, no entendí bien eso. ¿Podés reformularlo?';
+        return escapeHtml(aiResponse.texto || '') || 'Disculpá, no entendí bien eso. ¿Podés reformularlo?';
     }
   }
 

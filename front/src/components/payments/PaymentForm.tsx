@@ -11,8 +11,6 @@ const formatCurrency = (value: number, currency: string) =>
   }).format(value);
 
 const formatDate = (iso: string) => {
-  // Las fechas llegan como YYYY-MM-DD: sin la hora el navegador las interpreta
-  // en UTC y en AR (UTC-3) terminaría mostrando el día anterior.
   const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '—';
 
@@ -80,7 +78,6 @@ export default function PaymentForm({
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-shell px-4 py-10">
-      {/* resplandor dorado detrás de la card, en referencia al orbe del AI Assistant del mockup */}
       <div
         className="pointer-events-none absolute h-72 w-72 rounded-full bg-gold/20 blur-3xl"
         aria-hidden
@@ -93,7 +90,7 @@ export default function PaymentForm({
         {/* encabezado */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-poppins text-sm font-semibold text-goldLight/80">Chamber</p>
+            <p className="font-poppins text-sm font-semibold text-goldLight/80">OmniDesk</p>
             <h1 className="mt-1 font-poppins text-2xl font-bold text-goldLight">
               Confirmá tu reserva
             </h1>

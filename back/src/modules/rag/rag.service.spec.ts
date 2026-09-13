@@ -133,7 +133,7 @@ describe('RagService', () => {
       await service.askQuestion('Hola de nuevo', null, [], ultimaCompletada);
 
       const prompt = chatModelMock.generateContent.mock.calls[0][0];
-      expect(prompt).toContain('ya fue confirmada');
+      expect(prompt).toContain('a la espera del pago');
       expect(prompt).toContain('PROHIBIDO usar las herramientas');
     });
   });

@@ -77,7 +77,7 @@ describe('TelegramUpdate', () => {
 
     await update.onMessage('Hola', mockCtx);
 
-    expect(mockCtx.reply).toHaveBeenCalledWith('Hola, soy Chamber');
+    expect(mockCtx.reply).toHaveBeenCalledWith('Hola, soy Chamber', { parse_mode: 'HTML' });
     expect(em.persist).toHaveBeenCalledTimes(2);
   });
 
@@ -98,7 +98,8 @@ describe('TelegramUpdate', () => {
       mockTelegramUserId, null, expect.objectContaining({ checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 })
     );
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('¡Buenas noticias! Tenemos disponibilidad en nuestra Suite')
+      expect.stringContaining('¡Buenas noticias! Tenemos disponibilidad en nuestra Suite'),
+      { parse_mode: 'HTML' }
     );
   });
 
@@ -135,14 +136,15 @@ describe('TelegramUpdate', () => {
 
     jest.spyOn(reservationService, 'confirmReservation').mockImplementation(async (_telegramUserId, booking) => {
       booking.step = BookingProcessStep.COMPLETED;
-      return '¡Listo! Tu reserva en la Suite ha sido confirmada con éxito del 10-10-2026 al 15-10-2026. El total a abonar será de $500. ¡Te esperamos!';
+      return 'Te estoy guardando la Suite del 10-10-2026 al 15-10-2026. Todavía no está confirmada.';
     });
 
     await update.onMessage('Sí, confirmo', mockCtx);
 
     expect(activeBooking.step).toBe('COMPLETED');
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('ha sido confirmada con éxito')
+      expect.stringContaining('Todavía no está confirmada'),
+      { parse_mode: 'HTML' }
     );
     expect(em.persist).toHaveBeenCalledTimes(2);
   });

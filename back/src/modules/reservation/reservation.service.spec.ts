@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { ReservationService } from './reservation.service';
 import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
 import { RoomRepository } from '../room/room.repository';
@@ -41,7 +42,7 @@ describe('ReservationService', () => {
           provide: ReservationRepository,
           useValue: {
             findOverlapping: jest.fn(),
-            create: jest.fn().mockImplementation((data) => data),
+            create: jest.fn().mockImplementation((data) => ({ ...data, id: 'reservation-1' })),
             persist: jest.fn(),
           },
         },
@@ -49,6 +50,12 @@ describe('ReservationService', () => {
           provide: PaymentService,
           useValue: {
             createPreference: jest.fn().mockResolvedValue({ preferenceId: 'pref-1', initPoint: 'https://mp.example/pref-1' }),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            getOrThrow: jest.fn((key: string) => ({ FRONTEND_BASE_URL: 'http://localhost:5173' })[key]),
           },
         },
       ],
@@ -112,10 +119,14 @@ describe('ReservationService', () => {
       const booking = { ...activeBooking };
       const botReply = await service.confirmReservation(mockTelegramUserId, booking, mockGuestData);
 
-      expect(botReply).toContain('ha sido confirmada con éxito del 10-10-2026 al 15-10-2026');
-      expect(botReply).toContain('El total de la estadía es de $500');
-      expect(botReply).toContain('la seña a abonar para confirmarla es de $150');
-      expect(botReply).toContain('https://mp.example/pref-1');
+      expect(botReply).toContain('Te estoy guardando la Suite del 10-10-2026 al 15-10-2026');
+      expect(botReply).toContain('<b>Todavía no está confirmada.</b>');
+      expect(botReply).toContain('Te guardo la habitación 30 minutos');
+      expect(botReply).toContain('Total de la estadía: $500');
+      expect(botReply).toContain('Seña para reservarla: $150');
+      expect(botReply).toContain(
+        '<a href="http://localhost:5173/payment/form/reservation-1">http://localhost:5173/payment/form/reservation-1</a>',
+      );
       expect(reservationRepository.persist).toHaveBeenCalledWith(
         expect.objectContaining({
           totalAmount: 500,

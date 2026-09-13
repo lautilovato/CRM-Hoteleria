@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { ReservationSummary } from '@/config/types';
 import { getReservationSummary, goToCheckout, summaryToFormData } from '@/services/payment.service';
-import PaymentForm from './PaymentForm';
+import PaymentForm from '../../components/payments/PaymentForm';
 
 /** Resultado de la última carga, junto al id al que corresponde. */
 interface LoadState {

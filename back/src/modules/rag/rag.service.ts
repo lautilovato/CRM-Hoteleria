@@ -47,7 +47,7 @@ export class RagService {
     if (reservaActiva) {
       contextoReserva = `\n[ESTADO ACTUAL: Faltan datos. CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Capacidad=${reservaActiva.capacity || 'No'}]`;
     } else if (ultimaCompletada) {
-      contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue confirmada. PROHIBIDO usar las herramientas para estos datos.]`;
+      contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue tomada y está a la espera del pago de la seña. PROHIBIDO usar las herramientas para estos datos; no le digas al usuario que está confirmada hasta que le avisemos que se acreditó el pago.]`;
     }
 
     const historyText = history.map(msg => `${msg.role === 'USER' ? 'Usuario' : 'Chamber'}: ${msg.content}`).join('\n');
