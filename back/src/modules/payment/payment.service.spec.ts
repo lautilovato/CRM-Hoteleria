@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getBotToken } from 'nestjs-telegraf';
 import { PaymentService } from './payment.service';
+import { PaymentRepository } from './payment.repository';
 
 jest.mock('mercadopago', () => {
   const createMock = jest.fn();
@@ -25,6 +26,12 @@ const { createMock, getPaymentMock, validateMock } = (jest.requireMock('mercadop
 describe('PaymentService', () => {
   let service: PaymentService;
   let botMock: { telegram: { sendMessage: jest.Mock } };
+  let paymentRepositoryMock: {
+    findReservationById: jest.Mock;
+    confirmIfPending: jest.Mock;
+    findExpiredPendingReservations: jest.Mock;
+    cancelExpiredReservations: jest.Mock;
+  };
 
   const configValues: Record<string, string | undefined> = {
     MERCADOPAGO_ACCESS_TOKEN: 'TEST-fake-token',
@@ -39,6 +46,7 @@ describe('PaymentService', () => {
       providers: [
         PaymentService,
         { provide: ConfigService, useValue: { get: jest.fn((key: string) => values[key]) } },
+        { provide: PaymentRepository, useValue: paymentRepositoryMock },
         { provide: getBotToken(), useValue: botMock },
       ],
     }).compile();
@@ -49,6 +57,12 @@ describe('PaymentService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     botMock = { telegram: { sendMessage: jest.fn().mockResolvedValue(undefined) } };
+    paymentRepositoryMock = {
+      findReservationById: jest.fn(),
+      confirmIfPending: jest.fn(),
+      findExpiredPendingReservations: jest.fn().mockResolvedValue([]),
+      cancelExpiredReservations: jest.fn(),
+    };
   });
 
   it('lanza un error en el constructor si falta MERCADOPAGO_ACCESS_TOKEN', async () => {

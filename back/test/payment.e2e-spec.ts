@@ -49,6 +49,7 @@ describe('Payment Webhook (e2e)', () => {
 
     const reservation = em.create(Reservation, {
       room,
+      status: ReservationStatus.PENDING_PAYMENT,
       telegramUserId: '555444333',
       checkIn: new Date(2026, 10, 1),
       checkOut: new Date(2026, 10, 5),

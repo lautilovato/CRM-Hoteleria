@@ -5,14 +5,23 @@ import { InjectBot } from 'nestjs-telegraf';
 import { Telegraf, Context } from 'telegraf';
 import { Reservation } from '../../infrastructure/database/entities/Reservation.entity';
 import { ConfirmReservationDto } from '../reservation/dto/confirmReservation.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { PaymentRepository } from './payment.repository';
+import { Logger } from '@nestjs/common';
+import PDFDocument = require('pdfkit');
+
+/** Minutos que se le guarda la habitación al huésped antes de liberarla por falta de pago. */
+export const RESERVATION_HOLD_MINUTES = 30;
 
 @Injectable()
 export class PaymentService {
   private client: MercadoPagoConfig;
   private webhookSecret: string;
+  private readonly logger = new Logger(PaymentService.name);
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly paymentRepository: PaymentRepository,
     @InjectBot() private readonly bot: Telegraf<Context>,
   ) {
     const accessToken = this.configService.get<string>('MERCADOPAGO_ACCESS_TOKEN');
@@ -23,6 +32,20 @@ export class PaymentService {
 
     this.webhookSecret = webhookSecret;
     this.client = new MercadoPagoConfig({ accessToken });
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async releaseExpiredReservations(): Promise<void> {
+    const cutoffDate = new Date(Date.now() - RESERVATION_HOLD_MINUTES * 60 * 1000);
+
+    const expired = await this.paymentRepository.findExpiredPendingReservations(cutoffDate);
+
+    if (expired.length === 0) {
+      return;
+    }
+
+    await this.paymentRepository.cancelExpiredReservations(expired);
+    this.logger.log(`Canceladas ${expired.length} reserva(s) vencidas por falta de pago`);
   }
 
   async createPreference(reservation: Reservation, guestData: ConfirmReservationDto): Promise<{ preferenceId: string; initPoint: string }> {
@@ -45,6 +68,10 @@ export class PaymentService {
         },
         external_reference: reservation.id,
         notification_url: baseUrl ? `${baseUrl}/payment/webhook` : undefined,
+        back_urls: {
+          success: baseUrl ? `${baseUrl}/payment/success?reservationId=${reservation.id}` : undefined,
+        },
+        auto_return: 'approved',
       },
     });
 
@@ -78,7 +105,35 @@ export class PaymentService {
     const checkOutText = new Date(checkOut).toLocaleDateString('es-AR');
     await this.bot.telegram.sendMessage(
       telegramUserId,
-      `¡Recibimos tu pago! Tu reserva del ${checkInText} al ${checkOutText} quedó confirmada. ¡Te esperamos!`,
+      `✅ ¡Recibimos tu pago! Ahora sí, tu reserva del ${checkInText} al ${checkOutText} quedó CONFIRMADA. ¡Te esperamos!`,
     );
   }
+
+
+  async generateReceiptPDF(reservationId: string): Promise<Buffer> {
+    const reservation = await this.paymentRepository.findReservationById(reservationId);
+    if (!reservation) throw new Error('Reserva no encontrada');
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50 });
+      const buffers: Buffer[] = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      doc.fontSize(20).text('Comprobante de Reserva', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(12).text(`ID de Reserva: ${reservation.id}`);
+      doc.text(`Huésped: ${reservation.guestFullName} (DNI: ${reservation.guestDni})`);
+      doc.text(`Habitación: ${reservation.room?.category?.name ?? 'Estándar'}`);
+      doc.text(`Check-in: ${new Date(reservation.checkIn).toLocaleDateString('es-AR')}`);
+      doc.text(`Check-out: ${new Date(reservation.checkOut).toLocaleDateString('es-AR')}`);
+      doc.moveDown();
+      doc.fontSize(14).text(`Seña abonada: $${reservation.depositAmount} ARS`, { underline: true });
+
+      doc.end();
+    });
+  }
+  
 }

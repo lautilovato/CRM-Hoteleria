@@ -99,7 +99,7 @@ describe('RagService', () => {
 
       const result = await service.askQuestion('Sí, confirmo');
 
-      expect(result).toEqual({ action: ChatAction.CONFIRM_RESERVATION, datos });
+      expect(result).toEqual({ action: ChatAction.CONFIRM_RESERVATION, datos, texto: '' });
     });
 
     it('incluye la fecha actual en las instrucciones del sistema', async () => {
@@ -126,6 +126,24 @@ describe('RagService', () => {
       expect(prompt).toContain('CheckOut=No');
     });
 
+    it('le prohibe repetir la búsqueda cuando la oferta está esperando respuesta del huésped', async () => {
+      chatModelMock.generateContent.mockResolvedValue(mockChatResponse([], 'ok'));
+
+      const reservaActiva = {
+        step: 'PENDING_CONFIRMATION',
+        checkIn: '10-10-2026',
+        checkOut: '15-10-2026',
+        capacity: 2,
+      };
+      await service.askQuestion('dale', reservaActiva);
+
+      const prompt = chatModelMock.generateContent.mock.calls[0][0];
+      expect(prompt).toContain('Ya le ofreciste la habitación del 10-10-2026 al 15-10-2026');
+      expect(prompt).toContain("PROHIBIDO volver a usar 'search_availability'");
+      expect(prompt).toContain("usa 'confirm_reservation'");
+      expect(prompt).not.toContain('Faltan datos');
+    });
+
     it('prohíbe reutilizar los datos de una reserva ya completada', async () => {
       chatModelMock.generateContent.mockResolvedValue(mockChatResponse([], 'ok'));
 
@@ -133,7 +151,7 @@ describe('RagService', () => {
       await service.askQuestion('Hola de nuevo', null, [], ultimaCompletada);
 
       const prompt = chatModelMock.generateContent.mock.calls[0][0];
-      expect(prompt).toContain('ya fue confirmada');
+      expect(prompt).toContain('a la espera del pago');
       expect(prompt).toContain('PROHIBIDO usar las herramientas');
     });
   });

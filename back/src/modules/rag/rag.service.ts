@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { RagRepository } from './rag.repository';
 import { formatDate } from '../bookingProcess/date.util';
+import { BookingProcessStep } from '../../infrastructure/database/entities/BookingProcess.entity';
 
 export enum ChatAction {
   SEARCH_AVAILABILITY = 'SEARCH_AVAILABILITY',
@@ -44,10 +45,12 @@ export class RagService {
     const contextText = similarDocs.map(doc => doc.content).join('\n\n---\n\n');
 
     let contextoReserva = '';
-    if (reservaActiva) {
+    if (reservaActiva?.step === BookingProcessStep.PENDING_CONFIRMATION) {
+      contextoReserva = `\n[ESTADO ACTUAL: Ya le ofreciste la habitación del ${reservaActiva.checkIn} al ${reservaActiva.checkOut} para ${reservaActiva.capacity} persona(s) y estás esperando su respuesta. PROHIBIDO volver a usar 'search_availability' con esos mismos datos. Si el usuario acepta de cualquier forma ("sí", "dale", "ok", "obvio", "perfecto", "me la llevo", "confirmo", un pulgar arriba, etc.), NO vuelvas a buscar disponibilidad ni repitas la oferta: pedile el nombre completo y el DNI del huésped si todavía no los tenés, y en cuanto los tengas usa 'confirm_reservation'. Solo usa 'search_availability' si el usuario pide fechas o cantidad de personas distintas.]`;
+    } else if (reservaActiva) {
       contextoReserva = `\n[ESTADO ACTUAL: Faltan datos. CheckIn=${reservaActiva.checkIn || 'No'}, CheckOut=${reservaActiva.checkOut || 'No'}, Capacidad=${reservaActiva.capacity || 'No'}]`;
     } else if (ultimaCompletada) {
-      contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue confirmada. PROHIBIDO usar las herramientas para estos datos.]`;
+      contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue tomada y está a la espera del pago de la seña. PROHIBIDO usar las herramientas para estos datos; no le digas al usuario que está confirmada hasta que le avisemos que se acreditó el pago.]`;
     }
 
     const historyText = history.map(msg => `${msg.role === 'USER' ? 'Usuario' : 'Chamber'}: ${msg.content}`).join('\n');
@@ -96,7 +99,9 @@ export class RagService {
       const { name, args } = functionCall; 
       
       if (name === 'search_availability') return { action: ChatAction.SEARCH_AVAILABILITY, datos: args };
-      if (name === 'confirm_reservation') return { action: ChatAction.CONFIRM_RESERVATION, datos: args };
+      if (name === 'confirm_reservation') {
+        return { action: ChatAction.CONFIRM_RESERVATION, datos: args, texto: chatResponse.response.text() };
+      }
     }
 
     return { action: ChatAction.REPLY, texto: chatResponse.response.text() };

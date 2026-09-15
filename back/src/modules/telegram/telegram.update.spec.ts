@@ -77,7 +77,7 @@ describe('TelegramUpdate', () => {
 
     await update.onMessage('Hola', mockCtx);
 
-    expect(mockCtx.reply).toHaveBeenCalledWith('Hola, soy Chamber');
+    expect(mockCtx.reply).toHaveBeenCalledWith('Hola, soy Chamber', { parse_mode: 'HTML' });
     expect(em.persist).toHaveBeenCalledTimes(2);
   });
 
@@ -98,7 +98,8 @@ describe('TelegramUpdate', () => {
       mockTelegramUserId, null, expect.objectContaining({ checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 })
     );
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('¡Buenas noticias! Tenemos disponibilidad en nuestra Suite')
+      expect.stringContaining('¡Buenas noticias! Tenemos disponibilidad en nuestra Suite'),
+      { parse_mode: 'HTML' }
     );
   });
 
@@ -135,19 +136,20 @@ describe('TelegramUpdate', () => {
 
     jest.spyOn(reservationService, 'confirmReservation').mockImplementation(async (_telegramUserId, booking) => {
       booking.step = BookingProcessStep.COMPLETED;
-      return '¡Listo! Tu reserva en la Suite ha sido confirmada con éxito del 10-10-2026 al 15-10-2026. El total a abonar será de $500. ¡Te esperamos!';
+      return 'Te estoy guardando la Suite del 10-10-2026 al 15-10-2026. Todavía no está confirmada.';
     });
 
     await update.onMessage('Sí, confirmo', mockCtx);
 
     expect(activeBooking.step).toBe('COMPLETED');
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      expect.stringContaining('ha sido confirmada con éxito')
+      expect.stringContaining('Todavía no está confirmada'),
+      { parse_mode: 'HTML' }
     );
     expect(em.persist).toHaveBeenCalledTimes(2);
   });
 
-  it('debería responder con error técnico si faltan nombre completo o DNI al confirmar (CONFIRM_RESERVATION)', async () => {
+  it('debería pedir los datos del huésped en vez de cortar con un error si faltan al confirmar (CONFIRM_RESERVATION)', async () => {
     const activeBooking: any = {
       telegramUserId: mockTelegramUserId,
       step: 'PENDING_CONFIRMATION',
@@ -167,7 +169,82 @@ describe('TelegramUpdate', () => {
 
     expect(reservationService.confirmReservation).not.toHaveBeenCalled();
     expect(mockCtx.reply).toHaveBeenCalledWith(
-      'Hubo un error técnico al procesar tu consulta. Por favor, intentá nuevamente.'
+      expect.stringContaining('necesito el nombre completo y el DNI'),
+      { parse_mode: 'HTML' }
+    );
+  });
+
+  it('debería pedir solo el DNI si el nombre vino bien pero el DNI no (CONFIRM_RESERVATION)', async () => {
+    const activeBooking: any = {
+      telegramUserId: mockTelegramUserId,
+      step: 'PENDING_CONFIRMATION',
+      checkIn: '10-10-2026',
+      checkOut: '15-10-2026',
+      capacity: 2
+    };
+
+    jest.spyOn(bookingProcessService, 'getActive').mockResolvedValue(activeBooking);
+    jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
+      texto: '',
+      action: ChatAction.CONFIRM_RESERVATION,
+      datos: { fullName: 'Juan Pérez', dni: '30.111.222' }
+    } as any);
+
+    await update.onMessage('Sí, confirmo', mockCtx);
+
+    expect(reservationService.confirmReservation).not.toHaveBeenCalled();
+    expect(mockCtx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('DNI del huésped'),
+      { parse_mode: 'HTML' }
+    );
+  });
+
+  it('no repite la oferta si el usuario la acepta y el modelo vuelve a buscar los mismos datos (SEARCH_AVAILABILITY)', async () => {
+    const activeBooking: any = {
+      telegramUserId: mockTelegramUserId,
+      step: 'PENDING_CONFIRMATION',
+      checkIn: '10-10-2026',
+      checkOut: '15-10-2026',
+      capacity: 2
+    };
+
+    jest.spyOn(bookingProcessService, 'getActive').mockResolvedValue(activeBooking);
+    jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
+      texto: '',
+      action: ChatAction.SEARCH_AVAILABILITY,
+      datos: { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 }
+    } as any);
+
+    await update.onMessage('dale', mockCtx);
+
+    expect(reservationService.searchAvailability).not.toHaveBeenCalled();
+    expect(mockCtx.reply).toHaveBeenCalledWith(
+      expect.stringContaining('necesito el nombre completo y el DNI'),
+      { parse_mode: 'HTML' }
+    );
+  });
+
+  it('sí vuelve a buscar disponibilidad si el usuario cambia las fechas (SEARCH_AVAILABILITY)', async () => {
+    const activeBooking: any = {
+      telegramUserId: mockTelegramUserId,
+      step: 'PENDING_CONFIRMATION',
+      checkIn: '10-10-2026',
+      checkOut: '15-10-2026',
+      capacity: 2
+    };
+
+    jest.spyOn(bookingProcessService, 'getActive').mockResolvedValue(activeBooking);
+    jest.spyOn(ragService, 'askQuestion').mockResolvedValue({
+      texto: '',
+      action: ChatAction.SEARCH_AVAILABILITY,
+      datos: { checkIn: '20-10-2026', checkOut: '25-10-2026', capacity: 2 }
+    } as any);
+    jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue('Tenemos disponibilidad en nuestra Suite del 20-10-2026 al 25-10-2026.');
+
+    await update.onMessage('mejor del 20 al 25', mockCtx);
+
+    expect(reservationService.searchAvailability).toHaveBeenCalledWith(
+      mockTelegramUserId, activeBooking, expect.objectContaining({ checkIn: '20-10-2026', checkOut: '25-10-2026' })
     );
   });
 });

@@ -20,6 +20,7 @@ export class ReservationRepository {
 
   async findOverlapping(checkIn: Date, checkOut: Date): Promise<Reservation[]> {
     return this.em.find(Reservation, {
+      status: { $in: [ReservationStatus.PENDING_PAYMENT, ReservationStatus.CONFIRMED] },
       $and: [{ checkIn: { $lt: checkOut } }, { checkOut: { $gt: checkIn } }],
     }, { populate: ['room'] });
   }
