@@ -144,7 +144,7 @@ describe('Telegram Flow (e2e)', () => {
     let booking = await em.findOne(BookingProcess, { telegramUserId: otherTelegramUserId });
     expect(booking).toBeDefined();
     expect(booking?.step).toBe('IN_PROGRESS');
-    expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('no nos quedan habitaciones'));
+    expect(mockCtx.reply).toHaveBeenCalledWith(expect.stringContaining('no nos quedan habitaciones'), { parse_mode: 'HTML' });
 
     const firstBookingId = booking?.id;
 
