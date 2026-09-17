@@ -1,5 +1,5 @@
 ﻿# 📚 Documentación - OmniDesk
-![Logo OmniDesk](./logoONMIDESK.png)
+![Logo OmniDesk](./front/src/assets/logoONMIDESK.png)
 
 ## Elevator's Pitch
 
