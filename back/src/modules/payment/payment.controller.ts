@@ -5,7 +5,12 @@ import { ReservationSummaryDto } from './dto/reservationSummary.dto';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { Query, Res } from '@nestjs/common';
+import { Public } from '../auth/auth.decorators';
 
+// Todo este controller queda fuera de la autenticación: el webhook lo llama Mercado Pago,
+// /success es el redirect de vuelta del checkout, y el resumen y el comprobante los abre
+// el huésped desde el link de Telegram, sin cuenta.
+@Public()
 @Controller('payment')
 export class PaymentController {
   private readonly logger = new Logger(PaymentController.name);

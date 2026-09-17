@@ -6,6 +6,8 @@ import { getBotToken } from 'nestjs-telegraf';
 import { AppModule } from './../src/app.module';
 import { createValidationPipe } from '../src/validation.config';
 import { Document } from '../src/infrastructure/database/entities/Document.entity';
+import { seedUser, bearer } from './auth.helper';
+import { User, UserRole } from '../src/infrastructure/database/entities/User.entity';
 
 jest.mock('@google/generative-ai', () => {
   const actual = jest.requireActual('@google/generative-ai');
@@ -22,6 +24,9 @@ jest.mock('@google/generative-ai', () => {
 describe('RagModule - ingest (e2e)', () => {
   let app: INestApplication;
   let em: EntityManager;
+  // La ingesta escribe en la base de conocimiento del bot: solo un ADMIN puede.
+  let adminToken: string;
+  let adminId: string;
 
   const text = 'Texto de prueba para vectorizar en el e2e de ingesta.';
 
@@ -39,11 +44,16 @@ describe('RagModule - ingest (e2e)', () => {
 
     const orm = app.get(MikroORM);
     em = orm.em.fork();
+
+    const admin = await seedUser(app, em, UserRole.ADMIN);
+    adminToken = admin.accessToken;
+    adminId = admin.user.id;
   });
 
   afterAll(async () => {
     try {
       await em.nativeDelete(Document, { content: text });
+      await em.nativeDelete(User, { id: adminId });
       if (app) await app.close();
     } catch (e) {
     }
@@ -52,6 +62,7 @@ describe('RagModule - ingest (e2e)', () => {
   it('POST /rag/ingest debería vectorizar el texto y persistirlo como Document en la base', async () => {
     const response = await request(app.getHttpServer())
       .post('/rag/ingest')
+      .set('Authorization', bearer(adminToken))
       .send({ text })
       .expect(200);
 

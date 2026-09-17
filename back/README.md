@@ -35,6 +35,51 @@ Este documento contiene la guía de los comandos más utilizados para el desarro
   4. Configurá `https://<tu-url-de-ngrok>/payment/webhook` como notification URL en el panel de Mercado Pago (sección **Webhooks** de tu aplicación).
   5. Reiniciá la aplicación para que tome el nuevo `APP_BASE_URL`.
 
+## 🔐 Autenticación (JWT)
+
+Los endpoints del backend están protegidos por defecto: hay un guard global y lo que es público
+se marca explícitamente con `@Public()`. Las cuentas son de **empleados del hotel**; los huéspedes
+siguen usando el bot de Telegram sin cuenta.
+
+### Endpoints
+
+| Verbo | Ruta | Acceso |
+|---|---|---|
+| `POST` | `/auth/login` | público |
+| `POST` | `/auth/refresh` | público (la credencial es la cookie) |
+| `POST` | `/auth/logout` | público |
+| `POST` | `/auth/register` | solo rol `ADMIN` |
+| `GET` | `/auth/me` | autenticado |
+
+El **access token** se devuelve en el JSON y viaja en `Authorization: Bearer <token>`.
+El **refresh token** viaja en una cookie `httpOnly` acotada a `/auth` y **rota en cada uso**: si se
+reutiliza uno ya rotado se asume robo y se cierran todas las sesiones de ese usuario.
+
+### El primer administrador
+
+El registro está cerrado a rol `ADMIN`, así que el primer usuario lo crea la aplicación sola:
+si al arrancar no hay ningún usuario y están `ADMIN_BOOTSTRAP_EMAIL` y `ADMIN_BOOTSTRAP_PASSWORD`,
+se crea ese administrador y se avisa por log. Con la base ya poblada no hace nada.
+
+### Variables de entorno
+
+Están todas listadas en `.env.example`. Las de auth:
+
+| Variable | Para qué |
+|---|---|
+| `JWT_SECRET` | Firma de los access tokens. Mínimo 32 caracteres o la app no arranca. |
+| `JWT_EXPIRES_IN` | Vida del access token (`15m` por defecto). |
+| `REFRESH_TOKEN_TTL_DAYS` | Vida del refresh token en días. |
+| `BCRYPT_SALT_ROUNDS` | Costo del hash de contraseñas. |
+| `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | En producción, con front y back en dominios distintos: `true` y `none` (requiere HTTPS). |
+| `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Administrador inicial. |
+
+Generar el secreto:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+
 ## 🧪 Pruebas (Testing)
 
 - **`npm run test`**

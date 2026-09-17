@@ -7,6 +7,7 @@ import databaseConfig from './infrastructure/database/database.config';
 import { RagModule } from './modules/rag/rag.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -20,6 +21,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     RagModule,
     TelegramModule,
     PaymentModule,
+    AuthModule,
     TelegrafModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
