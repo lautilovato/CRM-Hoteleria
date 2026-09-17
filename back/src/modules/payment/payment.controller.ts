@@ -8,8 +8,7 @@ import { Query, Res } from '@nestjs/common';
 import { Public } from '../auth/auth.decorators';
 
 // Todo este controller queda fuera de la autenticación: el webhook lo llama Mercado Pago,
-// /success es el redirect de vuelta del checkout, y el resumen y el comprobante los abre
-// el huésped desde el link de Telegram, sin cuenta.
+// /success es el redirect de vuelta del checkout, y el resumen y el comprobante los abre el huesped desde el link de Telegram, sin cuenta.
 @Public()
 @Controller('payment')
 export class PaymentController {
@@ -43,6 +42,12 @@ export class PaymentController {
     const confirmed = await this.paymentRepository.confirmIfPending(reservation.id, String(payment.id));
     if (!confirmed) {
       this.logger.log(`[${source}] Reserva ${reservation.id} ya estaba confirmada; no se vuelve a notificar`);
+      return;
+    }
+
+    //una reserva pagada por MP siempre nace del bot y tiene telegramUserId; el campo es opcional en la entidad solo para las reservas manuales del panel, que no pasan por acá. El guard es por las dudas, sin usuario de Telegram no hay a quien avisarle.
+    if (!reservation.telegramUserId) {
+      this.logger.warn(`[${source}] Reserva ${reservation.id} confirmada pero sin telegramUserId; no se notifica`);
       return;
     }
 

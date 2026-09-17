@@ -12,4 +12,12 @@ export class RoomRepository {
       ...(excludedRoomIds.length > 0 ? { id: { $nin: excludedRoomIds } } : {}),
     }, { populate: ['category'] });
   }
+
+  async findById(id: string): Promise<Room | null> {
+    return this.em.findOne(Room, { id }, { populate: ['category'] });
+  }
+
+  async findAllWithCategory(): Promise<Room[]> {
+    return this.em.find(Room, {}, { populate: ['category'], orderBy: { roomNumber: 'asc' } });
+  }
 }
