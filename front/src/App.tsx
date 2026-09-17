@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import PaymentPage from '@/pages/payments/PaymentPage';
 import PaymentSuccessPage from '@/pages/payments/PaymentSuccessPage';
+import ReservationsPage from '@/pages/admin/ReservationsPage'; 
 
 function App() {
   return (
@@ -13,6 +14,9 @@ function App() {
         {/* vuelta de Mercado Pago; el back redirige acá después de confirmar el pago */}
         <Route path="/payment/success/:reservationId" element={<PaymentSuccessPage />} />
         <Route path="/payment/success" element={<PaymentSuccessPage />} />
+
+        {/* la ruta del panel de administración */}
+        <Route path="/admin/reservations" element={<ReservationsPage />} />
 
         <Route path="*" element={<Navigate to="/payment/form" replace />} />
       </Routes>
