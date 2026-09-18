@@ -771,6 +771,26 @@
           "enumItems": [],
           "mappedType": "string"
         },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "'BOT'",
+          "comment": null,
+          "collation": null,
+          "enumItems": [
+            "BOT",
+            "MANUAL"
+          ],
+          "mappedType": "enum"
+        },
         "room_id": {
           "name": "room_id",
           "type": "uuid",
@@ -815,7 +835,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "unique": false,
           "length": 255,
           "precision": null,
@@ -874,6 +894,12 @@
         }
       ],
       "checks": [
+        {
+          "name": "reservations_origin_check",
+          "expression": "\"origin\" in ('BOT', 'MANUAL')",
+          "definition": "check (\"origin\" in ('BOT', 'MANUAL'))",
+          "columnName": "origin"
+        },
         {
           "name": "reservations_status_check",
           "expression": "\"status\" in ('PENDING_PAYMENT', 'CONFIRMED', 'CANCELLED')",
