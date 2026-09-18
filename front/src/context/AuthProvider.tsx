@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AuthContext } from '@/context/auth.context';
-import { setAccessToken } from '@/config/api';
+import { setAccessToken, setSessionHandlers } from '@/config/api';
 import {
   getCurrentUser,
   login as loginRequest,
@@ -12,6 +12,38 @@ import type { AuthContextValue, AuthStatus, AuthUser, LoginCredentials } from '@
 export default function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus>('checking');
+
+  /**
+   * Handlers que usa el interceptor de `api.ts` para resolver un 401 renovando la
+   * sesión. Se registran acá, y no allá directamente, porque `api.ts` no puede
+   * importar `auth.service` sin cerrar un ciclo de imports.
+   *
+   * Va antes del efecto de restauración a propósito: los efectos corren en orden de
+   * declaración, así que los handlers quedan puestos antes del primer request. Las
+   * pantallas privadas, además, recién montan cuando `status` deja de ser 'checking',
+   * porque ProtectedRoute las tiene detrás de un loader hasta entonces.
+   */
+  useEffect(() => {
+    setSessionHandlers({
+      refresh: async () => {
+        // refreshSession tiene el single-flight: varios 401 en paralelo (la tabla de
+        // reservas dispara más de un request) comparten un único POST a /auth/refresh.
+        const { accessToken } = await refreshSession();
+        setAccessToken(accessToken);
+
+        return accessToken;
+      },
+      onSessionExpired: () => {
+        setAccessToken(null);
+        setUser(null);
+        // Alcanza con esto: ProtectedRoute ve el cambio y manda al login guardando
+        // la pantalla actual en `from`.
+        setStatus('anonymous');
+      },
+    });
+
+    return () => setSessionHandlers(null);
+  }, []);
 
   /**
    * Al recargar la página el token en memoria se pierde, pero la cookie httpOnly del

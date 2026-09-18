@@ -1,15 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { Roles } from '../auth/auth.decorators';
-import { RolesGuard } from '../auth/auth.guard';
-import { UserRole } from '../../infrastructure/database/entities/User.entity';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ReservationAdminService } from './reservation-admin.service';
 import { ListReservationsQueryDto } from './dto/listReservations.dto';
 import { SaveReservationDto } from './dto/saveReservation.dto';
 
-// Panel de administración de reservas (US-5). El guard global (JwtAuthGuard) ya exige estar
-// autenticado; acá se suma que además sea Administrador, como pide el checklist de la US.
-@Roles(UserRole.ADMIN)
-@UseGuards(RolesGuard)
+// Panel de administración de reservas (US-5). Solo lo protege el guard global (JwtAuthGuard):
+// por ahora cualquier usuario autenticado, ADMIN o EMPLOYEE, puede gestionar reservas.
 @Controller('reservations')
 export class ReservationAdminController {
   constructor(private readonly reservationAdminService: ReservationAdminService) {}

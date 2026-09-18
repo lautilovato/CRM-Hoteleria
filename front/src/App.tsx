@@ -1,10 +1,10 @@
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import AuthProvider from '@/context/AuthProvider';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/auth/LoginPage';
-import HomePage from '@/pages/HomePage';
 import PaymentPage from '@/pages/payments/PaymentPage';
 import PaymentSuccessPage from '@/pages/payments/PaymentSuccessPage';
-import ReservationsPage from '@/pages/admin/ReservationsPage'; 
+import ReservationsPage from '@/pages/admin/ReservationsPage';
 
 function App() {
   return (
@@ -13,7 +13,6 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/inicio" element={<HomePage />} />
 
           {/* rutas del huésped: llega por un link de Telegram y no tiene cuenta */}
           <Route path="/payment/form/:reservationId" element={<PaymentPage />} />
@@ -24,8 +23,10 @@ function App() {
           <Route path="/payment/success/:reservationId" element={<PaymentSuccessPage />} />
           <Route path="/payment/success" element={<PaymentSuccessPage />} />
 
-        {/* la ruta del panel de administración */}
-        <Route path="/admin/reservations" element={<ReservationsPage />} />
+          {/* por ahora cualquier usuario logueado (ADMIN o EMPLOYEE) entra a todo el panel */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/admin/reservations" element={<ReservationsPage />} />
+          </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

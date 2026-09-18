@@ -21,15 +21,15 @@ export default function LoginPage() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/inicio" replace />;
+    return <Navigate to="/admin/reservations" replace />;
   }
 
   const handleLogin = async (credentials: LoginCredentials) => {
     await login(credentials);
 
-    // Todavía nadie escribe este state; es el contrato que va a usar el ProtectedRoute
-    // de la próxima iteración para devolver a la pantalla que se quiso abrir.
-    const from = (location.state as { from?: string } | null)?.from ?? '/inicio';
+    // `from` lo escribe ProtectedRoute cuando rebota una pantalla privada: se vuelve
+    // ahí después de entrar, y si se llegó al login de frente se va al panel de reservas.
+    const from = (location.state as { from?: string } | null)?.from ?? '/admin/reservations';
     navigate(from, { replace: true });
   };
 
@@ -38,14 +38,12 @@ export default function LoginPage() {
       <BrandPanel />
 
       <main className="relative flex w-full flex-col justify-center px-6 py-12 sm:px-10 lg:w-1/2">
-        {/* más tenue que el del panel de marca: de este lado manda el formulario */}
         <div
           className="pointer-events-none absolute right-0 top-1/4 h-72 w-72 rounded-full bg-gold/10 blur-3xl"
           aria-hidden
         />
 
         <div className="relative mx-auto w-full max-w-sm">
-          {/* en mobile el panel de marca no está, así que la marca entra acá */}
           <img
             src={logoOmnidesk}
             alt="OmniDesk"
