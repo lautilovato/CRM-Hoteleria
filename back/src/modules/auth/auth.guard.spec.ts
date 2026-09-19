@@ -9,6 +9,7 @@ const buildContext = (request: any): ExecutionContext =>
     switchToHttp: () => ({ getRequest: () => request }),
     getHandler: () => jest.fn(),
     getClass: () => jest.fn(),
+    getType: jest.fn().mockReturnValue('http'),
   }) as unknown as ExecutionContext;
 
 describe('JwtAuthGuard', () => {

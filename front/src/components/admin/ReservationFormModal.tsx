@@ -11,6 +11,18 @@ interface ReservationFormModalProps {
 
 const inputClasses = 'w-full rounded-xl border border-goldLight/20 bg-surface px-3 py-2 text-sm text-text placeholder:text-textMuted focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/60';
 
+const DEPOSIT_PERCENTAGE = 0.3;
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+const calculateNights = (checkIn: string, checkOut: string): number => {
+  if (!checkIn || !checkOut) return 1;
+  const nights = Math.round((Date.parse(`${checkOut}T00:00:00Z`) - Date.parse(`${checkIn}T00:00:00Z`)) / MS_PER_DAY);
+  return Number.isFinite(nights) && nights > 0 ? nights : 1;
+};
+
 export default function ReservationFormModal({ reservation, onClose, onSuccess }: ReservationFormModalProps) {
   const isEdit = Boolean(reservation);
   
@@ -39,16 +51,32 @@ export default function ReservationFormModal({ reservation, onClose, onSuccess }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'number' ? Number(value) : value,
-    }));
+    setFormData((prev) => {
+      const next = { ...prev, [name]: type === 'number' ? Number(value) : value };
+
+      if (name === 'roomId' || name === 'checkIn' || name === 'checkOut') {
+        const room = rooms.find((r) => r.id === next.roomId);
+        if (room) {
+          const totalAmount = roundMoney(room.basePrice * calculateNights(next.checkIn, next.checkOut));
+          next.totalAmount = totalAmount;
+          next.depositAmount = roundMoney(totalAmount * DEPOSIT_PERCENTAGE);
+        }
+      }
+
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
+
+    if (formData.totalAmount <= 0 || formData.depositAmount <= 0) {
+      setError('El monto total y la seña deben ser mayores a $0.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       if (isEdit && reservation) {
         await updateReservation(reservation.id, formData);

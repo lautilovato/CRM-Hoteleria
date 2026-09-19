@@ -13,6 +13,10 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType() !== 'http') {
+      return true;
+    }
+
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -31,11 +35,8 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
-      // A propósito no se consulta la base en cada request: el guard queda barato y la
-      // revocación efectiva ocurre en /auth/refresh, que sí mira el estado del usuario.
       request.user = { id: payload.sub, email: payload.email, role: payload.role };
     } catch (error) {
-      // Se distingue el vencimiento para que el front sepa cuándo llamar a /auth/refresh.
       if (error instanceof TokenExpiredError) {
         throw new UnauthorizedException('La sesión expiró');
       }
@@ -61,8 +62,6 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    // Los guards globales corren antes que los de controller, así que para acá
-    // JwtAuthGuard ya dejó el usuario en el request.
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     if (!user || !required.includes(user.role)) {
