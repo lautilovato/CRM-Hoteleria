@@ -23,7 +23,7 @@ describe('TelegramUpdate', () => {
         TelegramUpdate,
         {
           provide: RagService,
-          useValue: { askQuestion: jest.fn() },
+          useValue: { askQuestion: jest.fn(), composeUnavailableReply: jest.fn() },
         },
         {
           provide: ReservationService,
@@ -88,9 +88,10 @@ describe('TelegramUpdate', () => {
       datos: { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 }
     } as any);
 
-    jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue(
-      '¡Buenas noticias! Tenemos disponibilidad en nuestra Suite del 10-10-2026 al 15-10-2026 por $100 la noche.\n\n¿Te gustaría que confirmemos la reserva?'
-    );
+    jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue({
+      available: true,
+      reply: '¡Buenas noticias! Tenemos disponibilidad en nuestra Suite del 10-10-2026 al 15-10-2026 por $100 la noche.\n\n¿Te gustaría que confirmemos la reserva?',
+    });
 
     await update.onMessage('Quiero reservar', mockCtx);
 
@@ -101,6 +102,53 @@ describe('TelegramUpdate', () => {
       expect.stringContaining('¡Buenas noticias! Tenemos disponibilidad en nuestra Suite'),
       { parse_mode: 'HTML' }
     );
+  });
+
+  describe('sin disponibilidad en las fechas pedidas (SEARCH_AVAILABILITY)', () => {
+    const datos = { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 };
+    const alternatives = [
+      { checkIn: '12-10-2026', checkOut: '17-10-2026', nights: 5, isShorterStay: false, roomCategory: 'Suite <VIP>', totalAmount: 500 },
+    ];
+
+    beforeEach(() => {
+      jest.spyOn(ragService, 'askQuestion').mockResolvedValue({ texto: '', action: ChatAction.SEARCH_AVAILABILITY, datos } as any);
+    });
+
+    it('le pide a Gemini una respuesta empática con las alternativas y la escapa como HTML', async () => {
+      jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue({ available: false, alternatives });
+      jest.spyOn(ragService, 'composeUnavailableReply').mockResolvedValue('Qué pena! Tengo la Suite <VIP> del 12 al 17');
+
+      await update.onMessage('Quiero del 10 al 15', mockCtx);
+
+      expect(ragService.composeUnavailableReply).toHaveBeenCalledWith(
+        'Quiero del 10 al 15', [], expect.objectContaining(datos), alternatives,
+      );
+      expect(mockCtx.reply).toHaveBeenCalledWith('Qué pena! Tengo la Suite &lt;VIP&gt; del 12 al 17', { parse_mode: 'HTML' });
+    });
+
+    it('lista las alternativas tal cual si Gemini no devuelve texto', async () => {
+      jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue({ available: false, alternatives });
+      jest.spyOn(ragService, 'composeUnavailableReply').mockResolvedValue('');
+
+      await update.onMessage('Quiero del 10 al 15', mockCtx);
+
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('• Del 12-10-2026 al 17-10-2026 (5 noches) – Suite &lt;VIP&gt;, total $500'),
+        { parse_mode: 'HTML' },
+      );
+    });
+
+    it('responde con el mensaje fijo, sin llamar a Gemini, si tampoco hay fechas cercanas', async () => {
+      jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue({ available: false, alternatives: [] });
+
+      await update.onMessage('Quiero del 10 al 15', mockCtx);
+
+      expect(ragService.composeUnavailableReply).not.toHaveBeenCalled();
+      expect(mockCtx.reply).toHaveBeenCalledWith(
+        'Lamentablemente no nos quedan habitaciones para 2 personas en esas fechas ni en los 7 días cercanos. ¿Probamos con otras fechas?',
+        { parse_mode: 'HTML' },
+      );
+    });
   });
 
   it('debería responder con error técnico si los datos de SEARCH_AVAILABILITY son inválidos', async () => {
@@ -239,7 +287,7 @@ describe('TelegramUpdate', () => {
       action: ChatAction.SEARCH_AVAILABILITY,
       datos: { checkIn: '20-10-2026', checkOut: '25-10-2026', capacity: 2 }
     } as any);
-    jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue('Tenemos disponibilidad en nuestra Suite del 20-10-2026 al 25-10-2026.');
+    jest.spyOn(reservationService, 'searchAvailability').mockResolvedValue({ available: true, reply: 'Tenemos disponibilidad en nuestra Suite del 20-10-2026 al 25-10-2026.' });
 
     await update.onMessage('mejor del 20 al 25', mockCtx);
 

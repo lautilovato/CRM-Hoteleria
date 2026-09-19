@@ -110,6 +110,7 @@ describe('RagService', () => {
 
       const chatConfig = getGenerativeModelMock.mock.calls.find(([config]) => config.model !== 'gemini-embedding-2')[0];
       expect(chatConfig.systemInstruction).toContain(`FECHA ACTUAL: ${formatDate(new Date())}`);
+      expect(chatConfig.systemInstruction).toContain('REGLA PARA FECHAS ALTERNATIVAS');
 
       jest.useRealTimers();
     });
@@ -153,6 +154,37 @@ describe('RagService', () => {
       const prompt = chatModelMock.generateContent.mock.calls[0][0];
       expect(prompt).toContain('a la espera del pago');
       expect(prompt).toContain('PROHIBIDO usar las herramientas');
+    });
+  });
+
+  describe('composeUnavailableReply', () => {
+    const search = { checkIn: '10-10-2026', checkOut: '15-10-2026', capacity: 2 };
+    const alternatives = [
+      { checkIn: '12-10-2026', checkOut: '16-10-2026', nights: 4, isShorterStay: true, roomCategory: 'Suite', totalAmount: 400 },
+      { checkIn: '12-10-2026', checkOut: '17-10-2026', nights: 5, isShorterStay: false, roomCategory: 'Suite', totalAmount: 500 },
+    ];
+
+    it('le pasa a Gemini el resultado con disponibilidad false y las alternativas, y devuelve su texto', async () => {
+      chatModelMock.generateContent.mockResolvedValue({ response: { text: () => 'Qué pena, pero tengo estas fechas...' } });
+
+      const reply = await service.composeUnavailableReply('Quiero del 10 al 15', [], search, alternatives);
+
+      expect(reply).toBe('Qué pena, pero tengo estas fechas...');
+      const prompt = chatModelMock.generateContent.mock.calls[0][0];
+      expect(prompt).toContain('Mensaje del usuario: Quiero del 10 al 15');
+      expect(prompt).toContain('"disponibilidad":false');
+      expect(prompt).toContain(JSON.stringify(alternatives));
+    });
+
+    it('usa el system prompt con la regla de fechas alternativas y sin tools', async () => {
+      chatModelMock.generateContent.mockResolvedValue({ response: { text: () => 'ok' } });
+
+      await service.composeUnavailableReply('Quiero del 10 al 15', [], search, alternatives);
+
+      const [chatConfig] = getGenerativeModelMock.mock.calls[0];
+      expect(chatConfig.systemInstruction).toContain('REGLA PARA FECHAS ALTERNATIVAS');
+      expect(chatConfig.systemInstruction).toContain('isShorterStay: true');
+      expect(chatConfig.tools).toBeUndefined();
     });
   });
 
