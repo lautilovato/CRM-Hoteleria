@@ -5,7 +5,7 @@ import { Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { RagService, ChatAction } from '../rag/rag.service';
-import { ReservationService } from '../reservation/reservation.service';
+import { ReservationService, AlternativeDates, ALTERNATIVE_DATES_WINDOW_DAYS } from '../reservation/reservation.service';
 import { BookingProcessService } from '../bookingProcess/bookingProcess.service';
 import { SearchAvailabilityDto } from '../bookingProcess/dto/searchAvailability.dto';
 import { ConfirmReservationDto } from '../reservation/dto/confirmReservation.dto';
@@ -50,9 +50,10 @@ export class TelegramUpdate {
       const userMessage = this.em.create(ChatMessage, { telegramUserId, role: MessageRole.USER, content: text });
       this.em.persist(userMessage);
 
-      const aiResponse = await this.ragService.askQuestion(text, activeBooking, previousMessages.reverse(), lastCompletedBooking);
+      const history = previousMessages.reverse();
+      const aiResponse = await this.ragService.askQuestion(text, activeBooking, history, lastCompletedBooking);
 
-      const botReply = (await this.resolveBotReply(aiResponse, telegramUserId, activeBooking))
+      const botReply = (await this.resolveBotReply(aiResponse, telegramUserId, activeBooking, text, history))
         || 'Disculpá, no pude procesar tu mensaje. ¿Podés reformularlo?';
 
       const botMessage = this.em.create(ChatMessage, { telegramUserId, role: MessageRole.BOT, content: botReply });
@@ -74,10 +75,16 @@ export class TelegramUpdate {
     }
   }
 
-  private async resolveBotReply(aiResponse: any, telegramUserId: string, activeBooking: BookingProcess | null): Promise<string> {
+  private async resolveBotReply(
+    aiResponse: any,
+    telegramUserId: string,
+    activeBooking: BookingProcess | null,
+    userText: string,
+    history: ChatMessage[],
+  ): Promise<string> {
     switch (aiResponse.action) {
       case ChatAction.SEARCH_AVAILABILITY:
-        return this.resolveSearchAvailability(aiResponse.datos, telegramUserId, activeBooking);
+        return this.resolveSearchAvailability(aiResponse.datos, telegramUserId, activeBooking, userText, history);
       case ChatAction.CONFIRM_RESERVATION:
         return this.resolveConfirmReservation(aiResponse.datos, telegramUserId, activeBooking, escapeHtml(aiResponse.texto || ''));
       default:
@@ -85,7 +92,13 @@ export class TelegramUpdate {
     }
   }
 
-  private async resolveSearchAvailability(datos: unknown, telegramUserId: string, activeBooking: BookingProcess | null): Promise<string> {
+  private async resolveSearchAvailability(
+    datos: unknown,
+    telegramUserId: string,
+    activeBooking: BookingProcess | null,
+    userText: string,
+    history: ChatMessage[],
+  ): Promise<string> {
     const searchDto = plainToInstance(SearchAvailabilityDto, datos);
     const validationErrors = await validate(searchDto);
     if (validationErrors.length > 0) {
@@ -100,7 +113,28 @@ export class TelegramUpdate {
       return TelegramUpdate.ASK_GUEST_DATA;
     }
 
-    return this.reservationService.searchAvailability(telegramUserId, activeBooking, searchDto);
+    const result = await this.reservationService.searchAvailability(telegramUserId, activeBooking, searchDto);
+    if (result.available) return result.reply;
+
+    if (result.alternatives.length === 0) {
+      return `Lamentablemente no nos quedan habitaciones para ${searchDto.capacity} personas en esas fechas ni en los ${ALTERNATIVE_DATES_WINDOW_DAYS} días cercanos. ¿Probamos con otras fechas?`;
+    }
+
+    const aiReply = await this.ragService.composeUnavailableReply(userText, history, searchDto, result.alternatives);
+    return escapeHtml(aiReply || '') || this.formatAlternativesFallback(result.alternatives);
+  }
+
+  /** Por si Gemini no devuelve texto: listamos las alternativas tal cual las calculó el backend. */
+  private formatAlternativesFallback(alternatives: AlternativeDates[]): string {
+    const options = alternatives.map(({ checkIn, checkOut, nights, isShorterStay, roomCategory, totalAmount }) =>
+      `• Del ${checkIn} al ${checkOut} (${nights} noches${isShorterStay ? ', estadía más corta' : ''}) – ${escapeHtml(roomCategory)}, total $${totalAmount}`,
+    );
+    return [
+      'Lamentablemente no tenemos lugar en esas fechas, pero encontré estas opciones cercanas:',
+      ...options,
+      '',
+      '¿Te sirve alguna?',
+    ].join('\n');
   }
 
   /** La búsqueda repite, dato por dato, la oferta que el huésped todavía no respondió. */

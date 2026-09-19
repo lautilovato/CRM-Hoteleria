@@ -4,6 +4,10 @@ import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { RagRepository } from './rag.repository';
 import { formatDate } from '../bookingProcess/date.util';
 import { BookingProcessStep } from '../../infrastructure/database/entities/BookingProcess.entity';
+import { SearchAvailabilityDto } from '../bookingProcess/dto/searchAvailability.dto';
+import type { AlternativeDates } from '../reservation/reservation.service';
+
+const CHAT_MODEL = 'gemini-flash-lite-latest';
 
 export enum ChatAction {
   SEARCH_AVAILABILITY = 'SEARCH_AVAILABILITY',
@@ -53,11 +57,11 @@ export class RagService {
       contextoReserva = `\n[ESTADO ACTUAL: La reserva del ${ultimaCompletada.checkIn} al ${ultimaCompletada.checkOut} ya fue tomada y está a la espera del pago de la seña. PROHIBIDO usar las herramientas para estos datos; no le digas al usuario que está confirmada hasta que le avisemos que se acreditó el pago.]`;
     }
 
-    const historyText = history.map(msg => `${msg.role === 'USER' ? 'Usuario' : 'Chamber'}: ${msg.content}`).join('\n');
+    const historyText = this.formatHistory(history);
 
-    const chatModel = this.genAI.getGenerativeModel({ 
-      model: 'gemini-flash-lite-latest',
-      systemInstruction: `Eres Chamber, el asistente virtual del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nFECHA ACTUAL: ${formatDate(new Date())}.\n\nREGLA PARA RESERVAS: Si faltan datos, pregúntalos. Las fechas siempre deben pedirse y enviarse en formato DD-MM-YYYY. Si el usuario no menciona el año, asumí que es el año actual (según la FECHA ACTUAL); si la fecha resultante ya pasó este año, asumí el año siguiente. Cuando tengas los 3 (entrada, salida, capacidad), usa 'search_availability'. Si ya le ofreciste una habitación y el usuario acepta o confirma explícitamente que quiere reservarla, pedile (si todavía no los tenés) el nombre completo y el DNI del huésped que se aloja antes de confirmar nada; recién cuando tengas esos dos datos usa 'confirm_reservation'. No pidas nombre ni DNI antes de que el usuario haya confirmado que quiere reservar.\n\nCONTEXTO:\n${contextText}`,
+    const chatModel = this.genAI.getGenerativeModel({
+      model: CHAT_MODEL,
+      systemInstruction: this.buildSystemInstruction(contextText),
       tools: [{
         functionDeclarations: [
           {
@@ -105,6 +109,42 @@ export class RagService {
     }
 
     return { action: ChatAction.REPLY, texto: chatResponse.response.text() };
+  }
+
+  /**
+   * Redacta la respuesta cuando 'search_availability' no encontró lugar pero sí fechas cercanas.
+   * Gemini recibe el resultado de la búsqueda y, siguiendo la regla de fechas alternativas del
+   * system prompt, las ofrece con tono empático. Va sin tools para que no dispare otra función.
+   */
+  async composeUnavailableReply(
+    userQuestion: string,
+    history: any[],
+    search: SearchAvailabilityDto,
+    alternatives: AlternativeDates[],
+  ): Promise<string> {
+    const chatModel = this.genAI.getGenerativeModel({
+      model: CHAT_MODEL,
+      systemInstruction: this.buildSystemInstruction(''),
+    });
+
+    const searchResult = JSON.stringify({
+      disponibilidad: false,
+      solicitud: { checkIn: search.checkIn, checkOut: search.checkOut, capacity: search.capacity },
+      alternativas: alternatives,
+    });
+
+    const prompt = `Historial de la conversación:\n${this.formatHistory(history)}\n\nMensaje del usuario: ${userQuestion}\n\nResultado de search_availability:\n${searchResult}`;
+
+    const chatResponse = await chatModel.generateContent(prompt);
+    return chatResponse.response.text();
+  }
+
+  private formatHistory(history: any[]): string {
+    return history.map(msg => `${msg.role === 'USER' ? 'Usuario' : 'Chamber'}: ${msg.content}`).join('\n');
+  }
+
+  private buildSystemInstruction(contextText: string): string {
+    return `Eres Chamber, el asistente virtual del hotel. Estás a entera disposición de los clientes para ayudarles de forma amable, servicial y profesional, manteniendo una charla natural y NO robótica. Responde a la pregunta del usuario utilizando ÚNICAMENTE la siguiente información provista en el contexto. Si la respuesta a una pregunta no está en el contexto, di "Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción"...\n\nFECHA ACTUAL: ${formatDate(new Date())}.\n\nREGLA PARA RESERVAS: Si faltan datos, pregúntalos. Las fechas siempre deben pedirse y enviarse en formato DD-MM-YYYY. Si el usuario no menciona el año, asumí que es el año actual (según la FECHA ACTUAL); si la fecha resultante ya pasó este año, asumí el año siguiente. Cuando tengas los 3 (entrada, salida, capacidad), usa 'search_availability'. Si ya le ofreciste una habitación y el usuario acepta o confirma explícitamente que quiere reservarla, pedile (si todavía no los tenés) el nombre completo y el DNI del huésped que se aloja antes de confirmar nada; recién cuando tengas esos dos datos usa 'confirm_reservation'. No pidas nombre ni DNI antes de que el usuario haya confirmado que quiere reservar.\n\nREGLA PARA FECHAS ALTERNATIVAS: Si el resultado de 'search_availability' llega con "disponibilidad: false" y un array de "alternativas", cambiá a un tono empático: lamentá que esas fechas no estén disponibles y ofrecé las alternativas con sus fechas exactas (DD-MM-YYYY), la categoría de la habitación y el total de la estadía, sin inventar ni modificar ninguna. Si una alternativa tiene "isShorterStay: true", aclará que es una estadía más corta e indicá cuántas noches son de las pedidas. Cerrá preguntando cuál prefiere. Si en la conversación ya le ofreciste alternativas y el usuario elige una (por ejemplo "la primera" o "la del 12"), usa 'search_availability' con las fechas exactas de esa alternativa y la misma cantidad de personas.\n\nCONTEXTO:\n${contextText}`;
   }
 
   private chunkText(text: string, chunkSize: number, overlap: number): string[] {
