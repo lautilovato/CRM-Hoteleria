@@ -4,8 +4,9 @@ import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { JwtAuthGuard, RolesGuard } from './auth.guard';
 import { UserRole } from '../../infrastructure/database/entities/User.entity';
 
-const buildContext = (request: any): ExecutionContext =>
+const buildContext = (request: any, type = 'http'): ExecutionContext =>
   ({
+    getType: () => type,
     switchToHttp: () => ({ getRequest: () => request }),
     getHandler: () => jest.fn(),
     getClass: () => jest.fn(),
@@ -26,6 +27,11 @@ describe('JwtAuthGuard', () => {
     reflectorMock.getAllAndOverride.mockReturnValue(true);
 
     await expect(guard.canActivate(buildContext({ headers: {} }))).resolves.toBe(true);
+    expect(jwtServiceMock.verifyAsync).not.toHaveBeenCalled();
+  });
+
+  it('no aplica a los handlers del bot de Telegram (contexto que no es HTTP)', async () => {
+    await expect(guard.canActivate(buildContext(undefined, 'telegraf'))).resolves.toBe(true);
     expect(jwtServiceMock.verifyAsync).not.toHaveBeenCalled();
   });
 

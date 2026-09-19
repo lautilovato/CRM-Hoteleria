@@ -13,6 +13,12 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Al ser APP_GUARD, Nest también lo corre en los handlers del bot (contexto 'telegraf'),
+    // que no tienen request HTTP ni token: el JWT solo protege la API.
+    if (context.getType() !== 'http') {
+      return true;
+    }
+
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -52,6 +58,10 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    if (context.getType() !== 'http') {
+      return true;
+    }
+
     const required = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
