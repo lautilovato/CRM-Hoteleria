@@ -9,7 +9,6 @@ import RoomsPage from '@/pages/admin/RoomsPage';
 
 function App() {
   return (
-    // El provider va adentro del Router para que pueda navegar cuando la sesión caduque.
     <Router>
       <AuthProvider>
         <Routes>
@@ -23,10 +22,7 @@ function App() {
           {/* vuelta de Mercado Pago; el back redirige acá después de confirmar el pago */}
           <Route path="/payment/success/:reservationId" element={<PaymentSuccessPage />} />
           <Route path="/payment/success" element={<PaymentSuccessPage />} />
-
-          {/* por ahora cualquier usuario logueado (ADMIN o EMPLOYEE) entra a todo el panel;
-              en /admin/rooms el rol decide adentro qué puede ver vs. editar (GET es de
-              lectura abierta, pero las mutaciones del inventario son solo ADMIN, ver US-6) */}
+          {/* rutas de admin/empleado: requieren login */}
           <Route element={<ProtectedRoute />}>
             <Route path="/admin/reservations" element={<ReservationsPage />} />
             <Route path="/admin/rooms" element={<RoomsPage />} />

@@ -18,7 +18,6 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(Number(value));
 
-/** Tabla principal del inventario, con precio, capacidad y estado de cada habitación (CA1). */
 export default function RoomsTable({ rooms, isLoading, error, isAdmin, onEdit, onDisable, onReactivate }: RoomsTableProps) {
   return (
     <div className="overflow-x-auto">

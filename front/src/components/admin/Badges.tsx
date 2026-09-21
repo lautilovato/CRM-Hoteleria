@@ -12,7 +12,6 @@ const STATUS_CLASSES: Record<ReservationStatus, string> = {
   CANCELLED: 'bg-danger/15 text-dangerText',
 };
 
-/** Badge de color por estado, misma paleta que se usa en el flujo de pago del huésped. */
 export function StatusBadge({ status }: { status: ReservationStatus }) {
   return (
     <span
@@ -28,7 +27,6 @@ const ORIGIN_LABEL: Record<ReservationOrigin, string> = {
   MANUAL: 'Manual',
 };
 
-/** Distingue visualmente el origen de la reserva (CA4): bot de Telegram vs. carga manual. */
 export function OriginBadge({ origin }: { origin: ReservationOrigin }) {
   const isBot = origin === 'BOT';
 
@@ -61,7 +59,6 @@ const ROOM_STATUS_CLASSES: Record<RoomStatus, string> = {
   INACTIVE: 'bg-danger/15 text-dangerText',
 };
 
-/** Badge de estado de una habitación (CA1, CA3): activa, en mantenimiento o deshabilitada. */
 export function RoomStatusBadge({ status }: { status: RoomStatus }) {
   return (
     <span

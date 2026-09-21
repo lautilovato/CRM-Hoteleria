@@ -244,9 +244,7 @@ describe('Admin Rooms CRUD (e2e)', () => {
         .delete(`/rooms/${createdRoomIds[0]}`)
         .set('Authorization', bearer(admin.accessToken))
         .expect(204);
-
-      // El DELETE hace un nativeUpdate, que no pasa por el identity map: sin este clear()
-      // el em de la suite devolvería la instancia vieja que ya tenía cacheada (status ACTIVE).
+        
       em.clear();
       const room = await em.findOne(Room, { id: createdRoomIds[0] });
       expect(room).not.toBeNull();

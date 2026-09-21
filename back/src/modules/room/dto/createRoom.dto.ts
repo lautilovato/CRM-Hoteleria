@@ -2,15 +2,6 @@ import { IsString, IsNotEmpty, IsInt, IsNumber, IsPositive, IsOptional, IsIn, Ma
 import { Transform } from 'class-transformer';
 import { RoomStatus } from '../../../infrastructure/database/entities/Room.entity';
 
-/**
- * Body de `POST /rooms` (CA2, CA3): alta de una habitación.
- *
- * `categoryName` es el "tipo" (Doble, Suite, etc.). Si ya existe una categoría con ese nombre
- * (comparación case-insensitive) la habitación se suma a esa categoría tal cual está: para
- * cambiarle el precio o la capacidad a un tipo existente se usa `PATCH /rooms/:id` (CA4), así
- * evitamos que dar de alta una habitación más pise silenciosamente el precio de las demás.
- * `capacity`/`basePrice` solo se usan cuando el tipo es nuevo.
- */
 export class CreateRoomDto {
   @Transform(({ value }) => value?.toString().trim())
   @IsString({ message: 'El número/nombre de la habitación debe ser una cadena de texto' })

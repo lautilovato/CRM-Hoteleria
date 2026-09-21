@@ -3,8 +3,8 @@ import type { RoomFormData, RoomOption, RoomStatus } from '@/config/types';
 import { createRoom, updateRoom } from '@/services/room.service';
 
 interface RoomFormModalProps {
-  room: RoomOption | null; // Si es null, opera en modo Create
-  existingRooms: RoomOption[]; // Para sugerir/resolver tipos ya cargados, igual que hace el back
+  room: RoomOption | null;
+  existingRooms: RoomOption[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -32,8 +32,6 @@ export default function RoomFormModal({ room, existingRooms, onClose, onSuccess 
     status: room?.status ?? 'ACTIVE',
   });
 
-  // Tipos ya cargados (uno por nombre, case-insensitive), tal como los resuelve el back:
-  // sirve tanto para el <datalist> como para saber cuándo hay que bloquear capacidad/precio.
   const existingCategories = useMemo(() => {
     const byName = new Map<string, { name: string; capacity: number; basePrice: number }>();
     for (const r of existingRooms) {
@@ -48,10 +46,6 @@ export default function RoomFormModal({ room, existingRooms, onClose, onSuccess 
 
   const matchedCategory = existingCategories.get(formData.categoryName.trim().toLowerCase()) ?? null;
 
-  // Si estás editando y el tipo no cambió, capacidad/precio SÍ son editables: es la forma de
-  // cambiarle el precio base a ese tipo (CA4). Si en cambio referenciás otro tipo ya existente
-  // (en alta, o cambiando de tipo en edición), el back ignora estos dos campos y reutiliza los
-  // del tipo existente tal cual: se bloquean para no mentirle al usuario.
   const isEditingSameType = isEdit && matchedCategory !== null && matchedCategory.name.toLowerCase() === (room?.categoryName ?? '').trim().toLowerCase();
   const fieldsLocked = matchedCategory !== null && !isEditingSameType;
 
@@ -59,7 +53,6 @@ export default function RoomFormModal({ room, existingRooms, onClose, onSuccess 
     if (fieldsLocked && matchedCategory) {
       setFormData((prev) => ({ ...prev, capacity: matchedCategory.capacity, basePrice: matchedCategory.basePrice }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo nos interesa reaccionar al match, no a formData entero
   }, [fieldsLocked, matchedCategory]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

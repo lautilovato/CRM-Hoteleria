@@ -1,7 +1,6 @@
 /** Estados de la reserva, espejo de `ReservationStatus` del back. */
 export type ReservationStatus = 'PENDING_PAYMENT' | 'CONFIRMED' | 'CANCELLED';
 
-/** Respuesta de `GET /payment/:reservationId/summary` (ReservationSummaryDto). */
 export interface ReservationSummary {
   id: string;
   checkIn: string;
@@ -11,7 +10,6 @@ export interface ReservationSummary {
   totalAmount: number;
   depositAmount: number;
   status: ReservationStatus;
-  /** Link de checkout de Mercado Pago; null si todavía no se generó la preferencia. */
   initPoint: string | null;
 }
 
@@ -37,10 +35,6 @@ export interface PrepaymentFormProps {
   onConfirmedPayment?: (reservation: PrepaymentFormData) => Promise<void> | void;
 }
 
-/* ------------------------------------------------------------------ */
-/* US-5: Gestión de reservas (panel de administración)                */
-/* ------------------------------------------------------------------ */
-
 /** Espejo de `RoomStatus` del back (`Room.entity.ts`). */
 export type RoomStatus = 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE';
 
@@ -58,16 +52,7 @@ export interface RoomOption {
   basePrice: number;
 }
 
-/* ------------------------------------------------------------------ */
-/* US-6: Gestión del inventario de habitaciones (panel de administración) */
-/* ------------------------------------------------------------------ */
 
-/**
- * Body de `POST /rooms` y `PATCH /rooms/:id`. `capacity`/`basePrice` solo tienen efecto
- * cuando `categoryName` es un tipo nuevo (alta) o el mismo tipo que ya tenía la habitación
- * (edición): si se referencia un tipo existente distinto, el back reutiliza sus valores tal
- * cual y estos dos campos se ignoran (ver RoomFormModal, que ya refleja esto en la UI).
- */
 export interface RoomFormData {
   roomNumber: string;
   categoryName: string;
