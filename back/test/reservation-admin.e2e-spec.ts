@@ -104,18 +104,18 @@ describe('Admin Reservations CRUD (e2e)', () => {
       await request(app.getHttpServer()).get('/reservations').expect(401);
     });
 
-    it('GET /reservations con un usuario Empleado responde 403 (solo Administrador)', async () => {
+    it('GET /reservations con un usuario Empleado responde 200 (ADMIN o EMPLOYEE pueden gestionar reservas)', async () => {
       await request(app.getHttpServer())
         .get('/reservations')
         .set('Authorization', bearer(employee.accessToken))
-        .expect(403);
+        .expect(200);
     });
 
-    it('GET /rooms exige también rol Administrador', async () => {
+    it('GET /rooms también lo puede listar un Empleado (lo usa el selector de habitaciones del alta manual)', async () => {
       await request(app.getHttpServer())
         .get('/rooms')
         .set('Authorization', bearer(employee.accessToken))
-        .expect(403);
+        .expect(200);
 
       await request(app.getHttpServer())
         .get('/rooms')

@@ -58,6 +58,24 @@ export interface RoomOption {
   basePrice: number;
 }
 
+/* ------------------------------------------------------------------ */
+/* US-6: Gestión del inventario de habitaciones (panel de administración) */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Body de `POST /rooms` y `PATCH /rooms/:id`. `capacity`/`basePrice` solo tienen efecto
+ * cuando `categoryName` es un tipo nuevo (alta) o el mismo tipo que ya tenía la habitación
+ * (edición): si se referencia un tipo existente distinto, el back reutiliza sus valores tal
+ * cual y estos dos campos se ignoran (ver RoomFormModal, que ya refleja esto en la UI).
+ */
+export interface RoomFormData {
+  roomNumber: string;
+  categoryName: string;
+  capacity: number;
+  basePrice: number;
+  status: RoomStatus;
+}
+
 /** Fila de la tabla de reservas del panel de administración. */
 export interface AdminReservation {
   id: string;

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { listReservations, cancelReservation } from '@/services/reservation.service';
 import type { AdminReservation, ReservationListFilters, ReservationSortBy } from '@/config/types';
 import ReservationsTable from '@/components/admin/ReservationsTable';
@@ -92,7 +93,12 @@ export default function ReservationsPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <h1 className="text-2xl font-bold text-text">Gestión de Reservas</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-text">Gestión de Reservas</h1>
+          <Link to="/admin/rooms" className="text-sm text-goldLight underline-offset-2 hover:underline">
+            Ver inventario de habitaciones →
+          </Link>
+        </div>
         <button
           onClick={handleCreate}
           className="rounded-xl bg-gold px-4 py-2 font-medium text-background transition hover:bg-goldLight motion-reduce:transition-none"

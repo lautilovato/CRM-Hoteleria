@@ -5,6 +5,7 @@ import LoginPage from '@/pages/auth/LoginPage';
 import PaymentPage from '@/pages/payments/PaymentPage';
 import PaymentSuccessPage from '@/pages/payments/PaymentSuccessPage';
 import ReservationsPage from '@/pages/admin/ReservationsPage';
+import RoomsPage from '@/pages/admin/RoomsPage';
 
 function App() {
   return (
@@ -23,9 +24,12 @@ function App() {
           <Route path="/payment/success/:reservationId" element={<PaymentSuccessPage />} />
           <Route path="/payment/success" element={<PaymentSuccessPage />} />
 
-          {/* por ahora cualquier usuario logueado (ADMIN o EMPLOYEE) entra a todo el panel */}
+          {/* por ahora cualquier usuario logueado (ADMIN o EMPLOYEE) entra a todo el panel;
+              en /admin/rooms el rol decide adentro qué puede ver vs. editar (GET es de
+              lectura abierta, pero las mutaciones del inventario son solo ADMIN, ver US-6) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/admin/reservations" element={<ReservationsPage />} />
+            <Route path="/admin/rooms" element={<RoomsPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
