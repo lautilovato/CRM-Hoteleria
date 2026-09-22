@@ -168,3 +168,155 @@ export interface LoginFormProps {
   /** Si rechaza, el formulario se rehabilita y muestra el error. */
   onLogin: (credentials: LoginCredentials) => Promise<void>;
 }
+
+/* ------------------------------------------------------------------ */
+/* US-11: Handover — intervención manual y derivación a un humano     */
+/* ------------------------------------------------------------------ */
+
+/** Espejo de `ChatSessionStatus` del back (`ChatSession.entity.ts`). */
+export type ChatSessionStatus = 'BOT' | 'WAITING_HUMAN' | 'HUMAN';
+
+/**
+ * Espejo de `MessageRole` (`ChatMessage.entity.ts`). Ojo: no existe 'ADMIN'.
+ * `SYSTEM` son los avisos automáticos de transición; `OPERATOR`, lo que escribe
+ * un recepcionista desde el panel.
+ */
+export type MessageRole = 'USER' | 'BOT' | 'SYSTEM' | 'OPERATOR';
+
+/** Por qué se pidió un humano. Espejo de `HandoverReason` del back. */
+export type HandoverReason = 'GUEST_REQUEST' | 'AI_FALLBACK' | 'MANUAL_TAKEOVER' | 'OUT_OF_HOURS';
+
+/** Espejo de `BookingProcessStep`, solo lo que el panel muestra del proceso activo. */
+export type BookingProcessStep = 'AWAITING_CHECKIN' | 'IN_PROGRESS' | 'PENDING_CONFIRMATION' | 'COMPLETED';
+
+/** Operador asignado a un chat (ChatOperatorDto). */
+export interface ChatOperator {
+  id: string;
+  fullName: string;
+}
+
+/** Fila de la bandeja de conversaciones (ChatSummaryDto). */
+export interface ChatSummary {
+  id: string;
+  telegramUserId: string;
+  guestDisplayName: string | null;
+  telegramUsername: string | null;
+  status: ChatSessionStatus;
+  assignedOperator: ChatOperator | null;
+  /** ISO 8601. */
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  lastMessageRole: MessageRole | null;
+  unreadCount: number;
+  /** Distinto de null ⇒ hay un pedido de intervención esperando a un operador (CA1). */
+  handoverRequestedAt: string | null;
+  handoverReason: HandoverReason | null;
+  createdAt: string;
+}
+
+/** Reserva en curso del huésped, para dar contexto al operador (ChatActiveBookingDto). */
+export interface ChatActiveBooking {
+  id: string;
+  step: BookingProcessStep;
+  /** Texto crudo que el bot le sacó al huésped (varchar libre, suele venir DD-MM-YYYY). */
+  checkIn: string | null;
+  checkOut: string | null;
+  capacity: number | null;
+}
+
+/** Detalle de una conversación (ChatDetailDto): el summary más el contexto del handover. */
+export interface ChatDetail extends ChatSummary {
+  takenOverAt: string | null;
+  releasedAt: string | null;
+  consecutiveBotFailures: number;
+  activeBooking: ChatActiveBooking | null;
+  /** Solo llega en la respuesta de `/release`: false si Telegram rechazó el aviso al huésped. */
+  guestNotified?: boolean;
+}
+
+/** Mensaje del historial (ChatMessageDto). Solo texto: no hay adjuntos ni media. */
+export interface ChatMessage {
+  id: string;
+  role: MessageRole;
+  content: string;
+  /** Solo los mensajes OPERATOR tienen autor. */
+  sentBy: ChatOperator | null;
+  createdAt: string;
+}
+
+/**
+ * Página del historial (CursorPageDto). Viene del más nuevo al más viejo, y
+ * `nextCursor` es el `createdAt` del más viejo de la página (null si no hay más).
+ */
+export interface CursorPage<T> {
+  data: T[];
+  nextCursor: string | null;
+}
+
+/** Filtros y paginación de `GET /chats`. */
+export interface ChatListFilters {
+  status?: ChatSessionStatus | 'ALL';
+  /** Solo los que tienen un pedido de intervención pendiente. */
+  pendingHandover?: boolean;
+  /** Solo los asignados al usuario del token. */
+  assignedToMe?: boolean;
+  /** Busca en telegramUserId, guestDisplayName y telegramUsername. Máx. 60 caracteres. */
+  search?: string;
+  page: number;
+  pageSize: number;
+  sortDir: SortDirection;
+}
+
+/* ───────── Eventos del gateway `/ws/chats` ───────── */
+
+/** Parche de la fila de la bandeja que viaja con cada `chat:message`. */
+export interface ChatSessionSummaryPatch {
+  status: ChatSessionStatus;
+  unreadCount: number;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+}
+
+export interface ChatCreatedEvent {
+  chat: ChatSummary;
+}
+
+export interface ChatMessageEvent {
+  chatId: string;
+  message: ChatMessage;
+  session: ChatSessionSummaryPatch;
+}
+
+export interface ChatStatusEvent {
+  chatId: string;
+  status: ChatSessionStatus;
+  previousStatus: ChatSessionStatus;
+  assignedOperator: ChatOperator | null;
+  reason: HandoverReason | null;
+  changedAt: string;
+}
+
+export interface ChatReadEvent {
+  chatId: string;
+  unreadCount: number;
+  readBy: ChatOperator;
+}
+
+/* ───────── CA5: horarios de atención ───────── */
+
+/** Un día de la semana de la recepción (SupportHoursDayDto). */
+export interface SupportHoursDay {
+  /** 0 = domingo … 6 = sábado, igual que `Date.getDay()`. */
+  weekday: number;
+  isClosed: boolean;
+  /** Hora en formato HH:mm. */
+  opensAt: string;
+  closesAt: string;
+}
+
+/** Respuesta de `GET /support-hours` y body de `PUT /support-hours`. */
+export interface SupportHours {
+  /** Siempre los 7 días, ordenados de domingo a sábado. */
+  days: SupportHoursDay[];
+  timeZone: string;
+}
