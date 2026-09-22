@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getBotToken } from 'nestjs-telegraf';
 import { PaymentService } from './payment.service';
+import { ChatService } from '../chat/chat.service';
 import { PaymentRepository } from './payment.repository';
 
 jest.mock('mercadopago', () => {
@@ -48,6 +49,14 @@ describe('PaymentService', () => {
         { provide: ConfigService, useValue: { get: jest.fn((key: string) => values[key]) } },
         { provide: PaymentRepository, useValue: paymentRepositoryMock },
         { provide: getBotToken(), useValue: botMock },
+        // El aviso de pago acreditado también queda en el hilo del panel (US-11).
+        {
+          provide: ChatService,
+          useValue: {
+            getOrCreateSession: jest.fn().mockResolvedValue({ id: 'chat-1', telegramUserId: '123' }),
+            recordSystemMessage: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 

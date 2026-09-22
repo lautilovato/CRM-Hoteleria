@@ -7,6 +7,7 @@ import { Reservation } from '../../infrastructure/database/entities/Reservation.
 import { ConfirmReservationDto } from '../reservation/dto/confirmReservation.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PaymentRepository } from './payment.repository';
+import { ChatService } from '../chat/chat.service';
 import { Logger } from '@nestjs/common';
 import PDFDocument = require('pdfkit');
 
@@ -22,6 +23,7 @@ export class PaymentService {
   constructor(
     private readonly configService: ConfigService,
     private readonly paymentRepository: PaymentRepository,
+    private readonly chatService: ChatService,
     @InjectBot() private readonly bot: Telegraf<Context>,
   ) {
     const accessToken = this.configService.get<string>('MERCADOPAGO_ACCESS_TOKEN');
@@ -100,13 +102,21 @@ export class PaymentService {
     }
   }
 
+
   async notifyPaymentApproved(telegramUserId: string, checkIn: Date | string, checkOut: Date | string): Promise<void> {
     const checkInText = new Date(checkIn).toLocaleDateString('es-AR');
     const checkOutText = new Date(checkOut).toLocaleDateString('es-AR');
-    await this.bot.telegram.sendMessage(
-      telegramUserId,
-      `✅ ¡Recibimos tu pago! Ahora sí, tu reserva del ${checkInText} al ${checkOutText} quedó CONFIRMADA. ¡Te esperamos!`,
-    );
+    const notice = `✅ ¡Recibimos tu pago! Ahora sí, tu reserva del ${checkInText} al ${checkOutText} quedó CONFIRMADA. ¡Te esperamos!`;
+
+    await this.bot.telegram.sendMessage(telegramUserId, notice);
+
+    try {
+      const session = await this.chatService.getOrCreateSession(telegramUserId);
+      await this.chatService.recordSystemMessage(session, notice);
+    } catch (error) {
+      // Dejar el hilo del panel sin el aviso es molesto; romper la confirmación del pago, grave.
+      this.logger.warn(`No se pudo registrar el aviso de pago en el chat de ${telegramUserId}: ${error}`);
+    }
   }
 
 
