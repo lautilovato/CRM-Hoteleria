@@ -1,7 +1,6 @@
 /** Estados de la reserva, espejo de `ReservationStatus` del back. */
 export type ReservationStatus = 'PENDING_PAYMENT' | 'CONFIRMED' | 'CANCELLED';
 
-/** Respuesta de `GET /payment/:reservationId/summary` (ReservationSummaryDto). */
 export interface ReservationSummary {
   id: string;
   checkIn: string;
@@ -11,7 +10,6 @@ export interface ReservationSummary {
   totalAmount: number;
   depositAmount: number;
   status: ReservationStatus;
-  /** Link de checkout de Mercado Pago; null si todavía no se generó la preferencia. */
   initPoint: string | null;
 }
 
@@ -37,10 +35,6 @@ export interface PrepaymentFormProps {
   onConfirmedPayment?: (reservation: PrepaymentFormData) => Promise<void> | void;
 }
 
-/* ------------------------------------------------------------------ */
-/* US-5: Gestión de reservas (panel de administración)                */
-/* ------------------------------------------------------------------ */
-
 /** Espejo de `RoomStatus` del back (`Room.entity.ts`). */
 export type RoomStatus = 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE';
 
@@ -56,6 +50,15 @@ export interface RoomOption {
   categoryName: string;
   capacity: number;
   basePrice: number;
+}
+
+
+export interface RoomFormData {
+  roomNumber: string;
+  categoryName: string;
+  capacity: number;
+  basePrice: number;
+  status: RoomStatus;
 }
 
 /** Fila de la tabla de reservas del panel de administración. */
