@@ -31,6 +31,7 @@ function App() {
             {/* por ahora cualquier usuario logueado (ADMIN o EMPLOYEE) entra a todo el panel */}
             <Route element={<ProtectedRoute />}>
               <Route path="/admin/reservations" element={<ReservationsPage />} />
+              <Route path="/admin/rooms" element={<RoomsPage />} />
 
               {/* US-11: la conversación abierta va en la URL, igual que el id de la reserva */}
               <Route path="/admin/chats" element={<ChatsPage />} />
@@ -41,14 +42,6 @@ function App() {
             <Route element={<ProtectedRoute roles={['ADMIN']} />}>
               <Route path="/admin/support-hours" element={<SupportHoursPage />} />
             </Route>
-          {/* vuelta de Mercado Pago; el back redirige acá después de confirmar el pago */}
-          <Route path="/payment/success/:reservationId" element={<PaymentSuccessPage />} />
-          <Route path="/payment/success" element={<PaymentSuccessPage />} />
-          {/* rutas de admin/empleado: requieren login */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/admin/reservations" element={<ReservationsPage />} />
-            <Route path="/admin/rooms" element={<RoomsPage />} />
-          </Route>
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
