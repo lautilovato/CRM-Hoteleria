@@ -42,12 +42,17 @@ export function detectHumanRequest(text: string): boolean {
   return PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-const UNRESOLVED_MARKERS = [
-  'no tengo esa informacion',
-  'derivarte a la recepcion',
-  'no entendi',
-  'no pude procesar',
-  'podes reformularlo',
+/**
+ * Gemini parafrasea aunque el prompt le dicte la frase exacta ("no entiendo" en vez de
+ * "no entendí", "no cuento con ese dato"...), así que se buscan familias de frases y no
+ * textos fijos.
+ */
+const UNRESOLVED_PATTERNS: RegExp[] = [
+  /\bno\s+(?:tengo|cuento\s+con|dispongo\s+de|encuentro)\s+(?:esa|esta|la|ese|este|el|dicha)?\s*(?:informacion|info|dato)\b/,
+  /\bno\s+(?:entiendo|entendi|comprendo|comprendi|logro\s+entender|pude\s+entender)\b/,
+  /\bderivarte\s+(?:a|con)\s+(?:la\s+)?recepcion\b/,
+  /\bno\s+pude\s+procesar\b/,
+  /\bpodes\s+reformular/,
 ];
 
 //Alimenta el contador de fallos consecutivos que levanta la bandera de intervenir.
@@ -55,5 +60,5 @@ export function isUnresolvedReply(reply: string): boolean {
   if (!reply) return true;
 
   const normalized = normalize(reply);
-  return UNRESOLVED_MARKERS.some((marker) => normalized.includes(marker));
+  return UNRESOLVED_PATTERNS.some((pattern) => pattern.test(normalized));
 }

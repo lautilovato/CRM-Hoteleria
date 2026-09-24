@@ -1,4 +1,4 @@
-import { detectHumanRequest } from './handover.detector';
+import { detectHumanRequest, isUnresolvedReply } from './handover.detector';
 
 describe('detectHumanRequest', () => {
   describe('pedidos reales de un humano', () => {
@@ -54,5 +54,30 @@ describe('detectHumanRequest', () => {
 
   it('tolera emojis y puntuación alrededor del pedido', () => {
     expect(detectHumanRequest('🙏 quiero hablar con una persona!!!')).toBe(true);
+  });
+});
+
+describe('isUnresolvedReply', () => {
+  it.each([
+    'Lamentablemente no tengo esa información en este momento, pero puedo derivarte a la recepción.',
+    // Respuesta real de Gemini: parafraseó "no entendí" y el contador se reiniciaba.
+    'Lamentablemente no entiendo tu consulta. ¿Te puedo ayudar con algo relacionado con el hotel?',
+    'No entendí bien tu mensaje',
+    'Disculpá, no comprendo lo que me pedís',
+    'No cuento con ese dato, te sugiero consultar en recepción',
+    'No dispongo de esa información',
+    'Disculpá, no pude procesar tu mensaje. ¿Podés reformularlo?',
+    '',
+  ])('cuenta como sin resolver: "%s"', (reply) => {
+    expect(isUnresolvedReply(reply)).toBe(true);
+  });
+
+  it.each([
+    'Nuestro restaurante está abierto de 12:30 a 23:00 horas.',
+    'El check-in es a partir de las 14:00.',
+    'La recepción está abierta las 24 horas.',
+    '¡Hola! ¿En qué puedo ayudarte hoy?',
+  ])('cuenta como resuelta: "%s"', (reply) => {
+    expect(isUnresolvedReply(reply)).toBe(false);
   });
 });
