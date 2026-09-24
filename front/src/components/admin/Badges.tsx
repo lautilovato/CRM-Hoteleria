@@ -1,4 +1,9 @@
-import type { ChatSessionStatus, ReservationOrigin, ReservationStatus } from '@/config/types';
+import type {
+  ChatSessionStatus,
+  ReservationOrigin,
+  ReservationStatus,
+  RoomStatus,
+} from '@/config/types';
 
 const STATUS_LABEL: Record<ReservationStatus, string> = {
   PENDING_PAYMENT: 'Pendiente',
@@ -12,7 +17,6 @@ const STATUS_CLASSES: Record<ReservationStatus, string> = {
   CANCELLED: 'bg-danger/15 text-dangerText',
 };
 
-/** Badge de color por estado, misma paleta que se usa en el flujo de pago del huésped. */
 export function StatusBadge({ status }: { status: ReservationStatus }) {
   return (
     <span
@@ -28,7 +32,6 @@ const ORIGIN_LABEL: Record<ReservationOrigin, string> = {
   MANUAL: 'Manual',
 };
 
-/** Distingue visualmente el origen de la reserva (CA4): bot de Telegram vs. carga manual. */
 export function OriginBadge({ origin }: { origin: ReservationOrigin }) {
   const isBot = origin === 'BOT';
 
@@ -68,6 +71,28 @@ export function ChatStatusBadge({ status }: { status: ChatSessionStatus }) {
       className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${CHAT_STATUS_CLASSES[status]}`}
     >
       {CHAT_STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+const ROOM_STATUS_LABEL: Record<RoomStatus, string> = {
+  ACTIVE: 'Activa',
+  MAINTENANCE: 'Mantenimiento',
+  INACTIVE: 'Deshabilitada',
+};
+
+const ROOM_STATUS_CLASSES: Record<RoomStatus, string> = {
+  ACTIVE: 'bg-success/20 text-successText',
+  MAINTENANCE: 'bg-gold/15 text-goldLight',
+  INACTIVE: 'bg-danger/15 text-dangerText',
+};
+
+export function RoomStatusBadge({ status }: { status: RoomStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${ROOM_STATUS_CLASSES[status]}`}
+    >
+      {ROOM_STATUS_LABEL[status]}
     </span>
   );
 }

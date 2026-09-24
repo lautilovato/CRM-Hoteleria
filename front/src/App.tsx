@@ -8,10 +8,10 @@ import PaymentSuccessPage from '@/pages/payments/PaymentSuccessPage';
 import ReservationsPage from '@/pages/admin/ReservationsPage';
 import ChatsPage from '@/pages/admin/ChatsPage';
 import SupportHoursPage from '@/pages/admin/SupportHoursPage';
+import RoomsPage from '@/pages/admin/RoomsPage';
 
 function App() {
   return (
-    // El provider va adentro del Router para que pueda navegar cuando la sesión caduque.
     <Router>
       <AuthProvider>
         {/* Adentro de AuthProvider: el handshake del gateway necesita el access token. */}
@@ -41,6 +41,14 @@ function App() {
             <Route element={<ProtectedRoute roles={['ADMIN']} />}>
               <Route path="/admin/support-hours" element={<SupportHoursPage />} />
             </Route>
+          {/* vuelta de Mercado Pago; el back redirige acá después de confirmar el pago */}
+          <Route path="/payment/success/:reservationId" element={<PaymentSuccessPage />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          {/* rutas de admin/empleado: requieren login */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/admin/reservations" element={<ReservationsPage />} />
+            <Route path="/admin/rooms" element={<RoomsPage />} />
+          </Route>
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
