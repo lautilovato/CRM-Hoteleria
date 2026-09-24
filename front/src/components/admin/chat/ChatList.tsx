@@ -3,6 +3,8 @@ import ChatFilters from '@/components/admin/chat/ChatFilters';
 import Pagination from '@/components/admin/Pagination';
 import type { ChatListFilters, ChatSummary } from '@/config/types';
 
+const CHAT_LABEL = { singular: 'conversación', plural: 'conversaciones' };
+
 interface ChatListProps {
   chats: ChatSummary[];
   total: number;
@@ -52,7 +54,16 @@ export default function ChatList({
         ))}
       </div>
 
-      <Pagination page={filters.page} pageSize={filters.pageSize} total={total} onPageChange={onPageChange} />
+      {/* Sin resultados ya lo dice el mensaje de la lista: el pie solo aparece si hay algo que contar. */}
+      {total > 0 && (
+        <Pagination
+          page={filters.page}
+          pageSize={filters.pageSize}
+          total={total}
+          onPageChange={onPageChange}
+          itemLabel={CHAT_LABEL}
+        />
+      )}
     </div>
   );
 }
