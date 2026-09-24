@@ -175,7 +175,7 @@ export default function ChatWindow({
         ))}
       </div>
 
-      <ChatComposer onSend={onSend} isSending={isSending} willTakeOver={chat.status !== 'HUMAN'} />
+      <ChatComposer onSend={onSend} isSending={isSending} status={chat.status} />
     </div>
   );
 }

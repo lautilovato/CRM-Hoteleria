@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectBot } from 'nestjs-telegraf';
 import { Context, Telegraf } from 'telegraf';
@@ -25,6 +25,13 @@ export const HANDOVER_REPLY = 'Te pongo en contacto con un recepcionista, aguard
 
 export const RELEASE_NOTICE =
   'El operador cerró la consulta. Chamber vuelve a estar a tu disposición; si necesitás hablar con una persona otra vez, pedímelo cuando quieras.';
+
+/** Lo primero que recibe el huésped cuando un operador toma la conversación. */
+export function takeOverGreeting(operatorFullName?: string | null): string {
+  const firstName = operatorFullName?.trim().split(/\s+/)[0];
+  const who = firstName ? `soy ${firstName} de la recepción` : 'te escribo de la recepción';
+  return `Hola, ${who}. Ya estoy con vos, ¿en qué te puedo ayudar?`;
+}
 
 export interface HandoverResult {
   /** Texto que el bot tiene que responderle al huésped. */
@@ -216,50 +223,49 @@ export class ChatService {
    * CA3. Se manda a Telegram ANTES de persistir: si el huésped bloqueó el bot, el panel no puede
    * quedar mostrando un mensaje que nunca salió.
    *
-   * Si el chat todavía estaba en modo BOT, escribir equivale a tomar el control. Pedir un click
-   * extra en "Tomar el control" solo lograría que el operador pierda lo que ya tipeó.
+   * Solo se escribe con el control tomado: así el huésped siempre recibe primero el saludo del
+   * operador y la bandeja sabe quién atiende cada conversación.
    */
   async sendOperatorMessage(chatId: string, operator: AuthUser, payload: SendChatMessageDto): Promise<ChatMessageDto> {
     const session = await this.requireSession(chatId);
 
+    if (session.status !== ChatSessionStatus.HUMAN) {
+      throw new ConflictException('Tomá el control de la conversación antes de escribirle al huésped');
+    }
+
     const delivered = await this.sendToGuest(session.telegramUserId, payload.text);
     if (!delivered) throw new BadGatewayException('No se pudo entregar el mensaje al huésped');
 
-    const previousStatus = session.status;
-    const takesControl = session.status !== ChatSessionStatus.HUMAN;
-    if (takesControl) this.assignToOperator(session, await this.chatRepository.findOperatorById(operator.id));
-
-    const author = session.assignedOperator?.id === operator.id
-      ? session.assignedOperator
-      : await this.chatRepository.findOperatorById(operator.id);
-
-    const message = this.chatRepository.createMessage({
-      telegramUserId: session.telegramUserId,
-      role: MessageRole.OPERATOR,
-      content: payload.text,
-      sentBy: author ?? undefined,
-    });
-
-    this.touchLastMessage(session, message);
-    await this.chatRepository.flush();
-
-    if (takesControl) this.emitStatus(session, previousStatus);
-    this.emitMessage(session, message);
+    const author = await this.chatRepository.findOperatorById(operator.id);
+    const message = await this.recordOperatorMessage(session, author, payload.text);
 
     return ChatMessageDto.fromEntity(message);
   }
 
-  //Silencia al bot desde el panel.
+  /**
+   * Silencia al bot desde el panel y le avisa al huésped quién lo atiende. Si Telegram falla el
+   * control se toma igual (como en el release) y el panel se entera por `guestNotified`.
+   */
   async takeOver(chatId: string, operator: AuthUser): Promise<ChatDetailDto> {
     const session = await this.requireSession(chatId);
     const previousStatus = session.status;
 
-    this.assignToOperator(session, await this.chatRepository.findOperatorById(operator.id));
+    // Repetir el click no tiene que volver a saludar al huésped.
+    if (previousStatus === ChatSessionStatus.HUMAN && session.assignedOperator?.id === operator.id) {
+      return ChatDetailDto.fromSession(session, await this.findActiveBooking(session));
+    }
+
+    const author = await this.chatRepository.findOperatorById(operator.id);
+    this.assignToOperator(session, author);
 
     await this.recordSystemMessage(session, `${operator.email} tomó el control de la conversación.`, false);
     this.emitStatus(session, previousStatus);
 
-    return ChatDetailDto.fromSession(session, await this.findActiveBooking(session));
+    const greeting = takeOverGreeting(author?.fullName);
+    const guestNotified = await this.sendToGuest(session.telegramUserId, greeting);
+    if (guestNotified) await this.recordOperatorMessage(session, author, greeting);
+
+    return ChatDetailDto.fromSession(session, await this.findActiveBooking(session), guestNotified);
   }
 
   //Libera el chat al bot
@@ -322,6 +328,21 @@ export class ChatService {
     });
 
     if (updatePreview) this.touchLastMessage(session, message);
+    await this.chatRepository.flush();
+
+    this.emitMessage(session, message);
+    return message;
+  }
+
+  private async recordOperatorMessage(session: ChatSession, author: User | null, text: string): Promise<ChatMessage> {
+    const message = this.chatRepository.createMessage({
+      telegramUserId: session.telegramUserId,
+      role: MessageRole.OPERATOR,
+      content: text,
+      sentBy: author ?? undefined,
+    });
+
+    this.touchLastMessage(session, message);
     await this.chatRepository.flush();
 
     this.emitMessage(session, message);

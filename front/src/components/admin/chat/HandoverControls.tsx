@@ -38,7 +38,7 @@ export default function HandoverControls({ chat, isUpdating, onTakeOver, onRelea
           onClick={() => void run(onTakeOver)}
           className="rounded-xl bg-gold px-4 py-2 text-sm font-medium text-shell transition hover:bg-goldLight disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
         >
-          {isUpdating ? 'Tomando…' : 'Tomar el control'}
+          {isUpdating ? 'Tomando…' : chat.status === 'WAITING_HUMAN' ? 'Atender conversación' : 'Tomar el control'}
         </button>
         {error && <p className="text-xs text-dangerText">⚠ {error}</p>}
       </div>

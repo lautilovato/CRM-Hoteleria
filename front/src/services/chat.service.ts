@@ -58,16 +58,19 @@ export const listChatMessages = async (
 };
 
 /**
- * Manda el mensaje al Telegram del huésped (CA3). Si el chat estaba en BOT o
- * WAITING_HUMAN, escribir **toma el control implícitamente**: el back lo pasa a HUMAN.
- * Si Telegram rechaza el envío responde 502 y no persiste nada.
+ * Manda el mensaje al Telegram del huésped (CA3). Solo con el control tomado: si el chat
+ * está en BOT o WAITING_HUMAN el back responde 409. Si Telegram rechaza el envío responde
+ * 502 y no persiste nada.
  */
 export const sendChatMessage = async (chatId: string, text: string): Promise<ChatMessage> => {
   const { data } = await apiClient.post<ChatMessage>(`/chats/${chatId}/messages`, { text });
   return data;
 };
 
-/** CA2: silencia al bot y asigna la conversación al operador. No le avisa nada al huésped. */
+/**
+ * CA2: silencia al bot, asigna la conversación y saluda al huésped en nombre del operador.
+ * `guestNotified: false` significa que el control se tomó pero el saludo no llegó a Telegram.
+ */
 export const takeOverChat = async (chatId: string): Promise<ChatDetail> => {
   const { data } = await apiClient.post<ChatDetail>(`/chats/${chatId}/takeover`);
   return data;

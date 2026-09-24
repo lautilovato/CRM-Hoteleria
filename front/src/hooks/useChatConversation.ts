@@ -202,18 +202,6 @@ export function useChatConversation(chatId: string | undefined) {
             saved,
           ),
         );
-
-        /**
-         * Escribir toma el control implícitamente. Normalmente lo avisa `chat:status`,
-         * pero si el socket está caído el toggle quedaría mostrando el botón equivocado.
-         */
-        if (chat && chat.status !== 'HUMAN') {
-          void getChat(chatId)
-            .then((detail) => {
-              if (requestedChatId.current === chatId) setChat(detail);
-            })
-            .catch(() => undefined);
-        }
       } catch (err) {
         setMessages((prev) => prev.filter((message) => message.id !== optimisticId));
         throw err;
@@ -221,17 +209,23 @@ export function useChatConversation(chatId: string | undefined) {
         setIsSending(false);
       }
     },
-    [chatId, chat, user],
+    [chatId, user],
   );
 
-  /** CA2: silencia al bot. El huésped no recibe ningún aviso. */
+  /** CA2: silencia al bot y el back saluda al huésped en nombre del operador. */
   const takeOver = useCallback(async () => {
     if (!chatId) return;
 
     setIsUpdatingStatus(true);
     try {
-      setChat(await takeOverChat(chatId));
-      setNotice(null);
+      const detail = await takeOverChat(chatId);
+
+      setChat(detail);
+      setNotice(
+        detail.guestNotified === false
+          ? 'Tomaste el control, pero no se pudo avisarle al huésped por Telegram.'
+          : null,
+      );
     } finally {
       setIsUpdatingStatus(false);
     }

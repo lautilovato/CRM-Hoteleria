@@ -1,6 +1,6 @@
-import { BadGatewayException, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ChatService, HANDOVER_REPLY, RELEASE_NOTICE } from './chat.service';
+import { ChatService, HANDOVER_REPLY, RELEASE_NOTICE, takeOverGreeting } from './chat.service';
 import { ChatRepository } from './chat.repository';
 import { ChatGateway } from './chat.gateway';
 import { SupportHoursService } from '../supportHours/supportHours.service';
@@ -174,22 +174,33 @@ describe('ChatService', () => {
   });
 
   describe('sendOperatorMessage', () => {
-    it('CA3: escribir con el chat en modo bot toma el control de forma implícita', async () => {
-      const session = makeSession();
-      repository.findById.mockResolvedValue(session);
+    it.each([ChatSessionStatus.BOT, ChatSessionStatus.WAITING_HUMAN])(
+      '409 si el chat está en %s: hay que tomar el control antes de escribir',
+      async (status) => {
+        const session = makeSession({ status });
+        repository.findById.mockResolvedValue(session);
+
+        await expect(service.sendOperatorMessage('chat-1', OPERATOR, { text: 'Hola' })).rejects.toBeInstanceOf(ConflictException);
+
+        expect(bot.telegram.sendMessage).not.toHaveBeenCalled();
+        expect(repository.createMessage).not.toHaveBeenCalled();
+        expect(session.status).toBe(status);
+      },
+    );
+
+    it('CA3: con el control tomado entrega el mensaje y lo guarda con su autor', async () => {
+      repository.findById.mockResolvedValue(makeSession({ status: ChatSessionStatus.HUMAN }));
 
       const result = await service.sendOperatorMessage('chat-1', OPERATOR, { text: 'Hola, soy de recepción' });
 
-      expect(session.status).toBe(ChatSessionStatus.HUMAN);
-      expect(session.assignedOperator).toMatchObject({ id: OPERATOR.id });
       expect(result.role).toBe(MessageRole.OPERATOR);
       expect(result.sentBy).toMatchObject({ id: OPERATOR.id, fullName: 'Lucrecia Colón' });
-      expect(gateway.emitStatus).toHaveBeenCalledTimes(1);
+      expect(gateway.emitStatus).not.toHaveBeenCalled();
       expect(gateway.emitMessage).toHaveBeenCalledTimes(1);
     });
 
     it('manda el texto crudo y sin parse_mode, para que un "<" no rompa el envío', async () => {
-      repository.findById.mockResolvedValue(makeSession());
+      repository.findById.mockResolvedValue(makeSession({ status: ChatSessionStatus.HUMAN }));
 
       await service.sendOperatorMessage('chat-1', OPERATOR, { text: 'el precio es <500 USD' });
 
@@ -198,25 +209,14 @@ describe('ChatService', () => {
       expect(repository.createMessage).toHaveBeenCalledWith(expect.objectContaining({ content: 'el precio es <500 USD' }));
     });
 
-    it('si Telegram rechaza el mensaje no lo persiste ni cambia el estado', async () => {
-      const session = makeSession();
-      repository.findById.mockResolvedValue(session);
+    it('si Telegram rechaza el mensaje no lo persiste', async () => {
+      repository.findById.mockResolvedValue(makeSession({ status: ChatSessionStatus.HUMAN }));
       bot.telegram.sendMessage.mockRejectedValue(new Error('403: bot was blocked by the user'));
 
       await expect(service.sendOperatorMessage('chat-1', OPERATOR, { text: 'Hola' })).rejects.toBeInstanceOf(BadGatewayException);
 
       expect(repository.createMessage).not.toHaveBeenCalled();
       expect(repository.flush).not.toHaveBeenCalled();
-      expect(session.status).toBe(ChatSessionStatus.BOT);
-    });
-
-    it('no vuelve a emitir el cambio de estado si el chat ya estaba tomado', async () => {
-      repository.findById.mockResolvedValue(makeSession({ status: ChatSessionStatus.HUMAN }));
-
-      await service.sendOperatorMessage('chat-1', OPERATOR, { text: 'Seguimos' });
-
-      expect(gateway.emitStatus).not.toHaveBeenCalled();
-      expect(gateway.emitMessage).toHaveBeenCalledTimes(1);
     });
 
     it('404 si la conversación no existe', async () => {
@@ -291,13 +291,58 @@ describe('ChatService', () => {
       expect(session.status).toBe(ChatSessionStatus.HUMAN);
       expect(session.handoverRequestedAt).toBeUndefined();
       expect(gateway.emitStatus).toHaveBeenCalledTimes(1);
-      // La nota del takeover es interna: no se le manda nada al huésped.
-      expect(bot.telegram.sendMessage).not.toHaveBeenCalled();
     });
 
-    it('la nota interna del takeover no pisa el preview de la bandeja', async () => {
+    it('le avisa al huésped quién lo atiende y guarda el saludo como mensaje del operador', async () => {
+      const session = makeSession({ status: ChatSessionStatus.WAITING_HUMAN });
+      repository.findById.mockResolvedValue(session);
+
+      const result = await service.takeOver('chat-1', OPERATOR);
+
+      const greeting = takeOverGreeting('Lucrecia Colón');
+      expect(greeting).toContain('soy Lucrecia de la recepción');
+      expect(bot.telegram.sendMessage).toHaveBeenCalledWith(TELEGRAM_USER_ID, greeting);
+      expect(repository.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ role: MessageRole.OPERATOR, content: greeting, sentBy: expect.objectContaining({ id: OPERATOR.id }) }),
+      );
+      expect(session.lastMessagePreview).toBe(greeting);
+      expect(result.guestNotified).toBe(true);
+    });
+
+    it('si Telegram falla el control se toma igual y se informa guestNotified: false', async () => {
+      const session = makeSession({ status: ChatSessionStatus.WAITING_HUMAN });
+      repository.findById.mockResolvedValue(session);
+      bot.telegram.sendMessage.mockRejectedValue(new Error('403: bot was blocked by the user'));
+
+      const result = await service.takeOver('chat-1', OPERATOR);
+
+      expect(session.status).toBe(ChatSessionStatus.HUMAN);
+      expect(result.guestNotified).toBe(false);
+      expect(repository.createMessage).not.toHaveBeenCalledWith(expect.objectContaining({ role: MessageRole.OPERATOR }));
+    });
+
+    it('repetir el click del mismo operador no vuelve a saludar al huésped', async () => {
+      const session = makeSession({
+        status: ChatSessionStatus.HUMAN,
+        assignedOperator: { id: OPERATOR.id, fullName: 'Lucrecia Colón' } as any,
+      });
+      repository.findById.mockResolvedValue(session);
+
+      await service.takeOver('chat-1', OPERATOR);
+
+      expect(bot.telegram.sendMessage).not.toHaveBeenCalled();
+      expect(gateway.emitStatus).not.toHaveBeenCalled();
+    });
+
+    it('sin nombre cargado el saludo no queda con un hueco', () => {
+      expect(takeOverGreeting(undefined)).toBe('Hola, te escribo de la recepción. Ya estoy con vos, ¿en qué te puedo ayudar?');
+      expect(takeOverGreeting('   ')).toBe('Hola, te escribo de la recepción. Ya estoy con vos, ¿en qué te puedo ayudar?');
+    });
+
+    it('la nota interna del takeover no es la que queda en el preview de la bandeja', async () => {
       const session = makeSession({ lastMessagePreview: '¿Tienen pileta?' });
       repository.findById.mockResolvedValue(session);
+      bot.telegram.sendMessage.mockRejectedValue(new Error('timeout'));
 
       await service.takeOver('chat-1', OPERATOR);
 

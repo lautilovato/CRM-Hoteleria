@@ -12,7 +12,7 @@ import { seedUser, bearer } from './auth.helper';
 import { User, UserRole } from '../src/infrastructure/database/entities/User.entity';
 import { ChatSession, ChatSessionStatus, HandoverReason } from '../src/infrastructure/database/entities/ChatSession.entity';
 import { ChatMessage, MessageRole } from '../src/infrastructure/database/entities/ChatMessage.entity';
-import { RELEASE_NOTICE } from '../src/modules/chat/chat.service';
+import { RELEASE_NOTICE, takeOverGreeting } from '../src/modules/chat/chat.service';
 
 const UNKNOWN_UUID = '11111111-2222-4333-8444-555555555555';
 
@@ -266,20 +266,21 @@ describe('Chats / Handover (e2e)', () => {
       expect(botMock.telegram.sendMessage.mock.calls[0]).toHaveLength(2);
     });
 
-    it('escribir con el chat en modo bot toma el control de forma implícita', async () => {
+    it('409 si nadie tomó el control: escribir ya no lo toma de forma implícita', async () => {
       await request(app.getHttpServer())
         .post(`/chats/${chatWithHistoryId}/messages`)
         .set('Authorization', bearer(admin.accessToken))
         .send({ text: 'Te ayudo yo con eso' })
-        .expect(201);
+        .expect(409);
+
+      expect(botMock.telegram.sendMessage).not.toHaveBeenCalled();
 
       const { body } = await request(app.getHttpServer())
         .get(`/chats/${chatWithHistoryId}`)
         .set('Authorization', bearer(admin.accessToken))
         .expect(200);
 
-      expect(body.status).toBe(ChatSessionStatus.HUMAN);
-      expect(body.assignedOperator).toMatchObject({ id: admin.user.id });
+      expect(body.status).toBe(ChatSessionStatus.BOT);
     });
 
     it('502 si Telegram rechaza el mensaje, y no lo guarda', async () => {
@@ -321,8 +322,14 @@ describe('Chats / Handover (e2e)', () => {
         assignedOperator: { id: employee.user.id },
         handoverRequestedAt: null,
       });
-      // Tomar el control no le manda nada al huésped: lo que sigue lo escribe el operador.
-      expect(botMock.telegram.sendMessage).not.toHaveBeenCalled();
+      expect(body.guestNotified).toBe(true);
+      // El huésped se entera de que ahora lo atiende una persona.
+      const greeting = takeOverGreeting(employee.user.fullName);
+      expect(botMock.telegram.sendMessage).toHaveBeenCalledWith(guestPendingHandover, greeting);
+
+      const saved = await em.fork().find(ChatMessage, { telegramUserId: guestPendingHandover, content: greeting });
+      expect(saved).toHaveLength(1);
+      expect(saved[0].role).toBe(MessageRole.OPERATOR);
     });
 
     it('CA4: devolver el control reactiva al bot y avisa al huésped', async () => {
