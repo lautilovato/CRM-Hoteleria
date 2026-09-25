@@ -43,6 +43,11 @@ export class SupportHoursService {
     }
   }
 
+  /** Zona horaria efectiva (ya validada). La usa el dashboard para saber qué día es "hoy" en el hotel. */
+  getTimeZone(): string {
+    return this.timeZone;
+  }
+
   async getSchedule(): Promise<SupportHoursDto> {
     const days = await this.supportHoursRepository.findAll();
     return { days: days.map((day) => SupportHoursDayDto.fromEntity(day)), timeZone: this.timeZone };
