@@ -25,6 +25,9 @@ export const setAccessToken = (token: string | null): void => {
   accessToken = token;
 };
 
+/** Lectura del token para el handshake del WebSocket (`/ws/chats`), que no pasa por axios. */
+export const getAccessToken = (): string | null => accessToken;
+
 export interface SessionHandlers {
   /** Renueva la sesión y devuelve el access token nuevo. Rechaza si ya no hay sesión. */
   refresh: () => Promise<string>;

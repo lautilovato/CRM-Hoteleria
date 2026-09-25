@@ -104,6 +104,8 @@ describe('Admin Reservations CRUD (e2e)', () => {
       await request(app.getHttpServer()).get('/reservations').expect(401);
     });
 
+    // El panel de reservas lo opera todo el personal: alcanza con estar autenticado. La
+    // restricción por rol se reserva para la configuración del hotel (ver /rag y /support-hours).
     it('GET /reservations con un usuario Empleado responde 200 (ADMIN o EMPLOYEE pueden gestionar reservas)', async () => {
       await request(app.getHttpServer())
         .get('/reservations')
@@ -111,7 +113,7 @@ describe('Admin Reservations CRUD (e2e)', () => {
         .expect(200);
     });
 
-    it('GET /rooms también lo puede listar un Empleado (lo usa el selector de habitaciones del alta manual)', async () => {
+    it('GET /rooms también está abierto a Empleado y a Administrador (lo usa el selector de habitaciones del alta manual)', async () => {
       await request(app.getHttpServer())
         .get('/rooms')
         .set('Authorization', bearer(employee.accessToken))
@@ -121,6 +123,10 @@ describe('Admin Reservations CRUD (e2e)', () => {
         .get('/rooms')
         .set('Authorization', bearer(admin.accessToken))
         .expect(200);
+    });
+
+    it('GET /rooms sin token responde 401', async () => {
+      await request(app.getHttpServer()).get('/rooms').expect(401);
     });
   });
 

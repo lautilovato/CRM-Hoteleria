@@ -1,4 +1,9 @@
-import type { ReservationOrigin, ReservationStatus, RoomStatus } from '@/config/types';
+import type {
+  ChatSessionStatus,
+  ReservationOrigin,
+  ReservationStatus,
+  RoomStatus,
+} from '@/config/types';
 
 const STATUS_LABEL: Record<ReservationStatus, string> = {
   PENDING_PAYMENT: 'Pendiente',
@@ -43,6 +48,29 @@ export function OriginBadge({ origin }: { origin: ReservationOrigin }) {
         aria-hidden
       />
       {ORIGIN_LABEL[origin]}
+    </span>
+  );
+}
+
+const CHAT_STATUS_LABEL: Record<ChatSessionStatus, string> = {
+  BOT: 'Chamber',
+  WAITING_HUMAN: 'Esperando operador',
+  HUMAN: 'Atendido por un humano',
+};
+
+const CHAT_STATUS_CLASSES: Record<ChatSessionStatus, string> = {
+  BOT: 'bg-surface text-textMuted',
+  WAITING_HUMAN: 'bg-gold/15 text-goldLight',
+  HUMAN: 'bg-success/20 text-successText',
+};
+
+/** Quién está atendiendo la conversación: el bot, nadie todavía, o un operador (US-11). */
+export function ChatStatusBadge({ status }: { status: ChatSessionStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${CHAT_STATUS_CLASSES[status]}`}
+    >
+      {CHAT_STATUS_LABEL[status]}
     </span>
   );
 }

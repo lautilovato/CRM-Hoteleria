@@ -10,7 +10,9 @@ import { RoomCategory } from '../src/infrastructure/database/entities/RoomCatego
 import { Reservation } from '../src/infrastructure/database/entities/Reservation.entity';
 import { BookingProcess } from '../src/infrastructure/database/entities/BookingProcess.entity';
 import { getBotToken } from 'nestjs-telegraf';
-import { ChatMessage } from '../src/infrastructure/database/entities/ChatMessage.entity';
+import { ChatMessage, MessageRole } from '../src/infrastructure/database/entities/ChatMessage.entity';
+import { ChatSession, ChatSessionStatus } from '../src/infrastructure/database/entities/ChatSession.entity';
+import { HANDOVER_REPLY } from '../src/modules/chat/chat.service';
 
 describe('Telegram Flow (e2e)', () => {
   let app: INestApplication;
@@ -20,7 +22,7 @@ describe('Telegram Flow (e2e)', () => {
   let uniqueRoomNumber: string;
   let seededCategory: RoomCategory;
   let seededRoom: Room;
-  const testTelegramUserIds = ['999888777', '111222333'];
+  const testTelegramUserIds = ['999888777', '111222333', '555444333', '666555444'];
 
   beforeAll(async () => {
     ragServiceMock = { askQuestion: jest.fn() };
@@ -70,6 +72,7 @@ describe('Telegram Flow (e2e)', () => {
       await em.nativeDelete(Reservation, { telegramUserId: { $in: testTelegramUserIds } });
       await em.nativeDelete(BookingProcess, { telegramUserId: { $in: testTelegramUserIds } });
       await em.nativeDelete(ChatMessage, { telegramUserId: { $in: testTelegramUserIds } });
+      await em.nativeDelete(ChatSession, { telegramUserId: { $in: testTelegramUserIds } });
       await em.nativeDelete(Room, { id: seededRoom.id });
       await em.nativeDelete(RoomCategory, { id: seededCategory.id });
 
@@ -162,5 +165,49 @@ describe('Telegram Flow (e2e)', () => {
     expect(booking?.id).toBe(firstBookingId);
     expect(booking?.step).toBe('PENDING_CONFIRMATION');
     expect(booking?.capacity).toBe(2);
+  });
+
+  describe('US-11: derivación a un operador humano', () => {
+    const buildCtx = (telegramUserId: string) => ({
+      from: { id: Number(telegramUserId) },
+      sendChatAction: jest.fn(),
+      reply: jest.fn(),
+    } as any);
+
+    it('CA1: pedir hablar con una persona deriva y deja la sesión esperando a un humano', async () => {
+      const telegramUserId = '555444333';
+      const mockCtx = buildCtx(telegramUserId);
+      ragServiceMock.askQuestion.mockClear();
+
+      await telegramUpdate.onMessage('quiero hablar con una persona', mockCtx);
+
+      // El atajo determinista corta antes de gastar una llamada a Gemini.
+      expect(ragServiceMock.askQuestion).not.toHaveBeenCalled();
+      expect(mockCtx.reply).toHaveBeenCalledWith(HANDOVER_REPLY);
+
+      const session = await em.fork().findOne(ChatSession, { telegramUserId });
+      expect(session?.status).toBe(ChatSessionStatus.WAITING_HUMAN);
+      expect(session?.handoverRequestedAt).toBeInstanceOf(Date);
+    });
+
+    it('CA2: con la conversación en modo humano guarda el mensaje pero no responde', async () => {
+      const telegramUserId = '666555444';
+      const seedEm = em.fork();
+      seedEm.persist(seedEm.create(ChatSession, { telegramUserId, status: ChatSessionStatus.HUMAN }));
+      await seedEm.flush();
+
+      const mockCtx = buildCtx(telegramUserId);
+      ragServiceMock.askQuestion.mockClear();
+
+      await telegramUpdate.onMessage('¿Hay alguien ahí?', mockCtx);
+
+      expect(ragServiceMock.askQuestion).not.toHaveBeenCalled();
+      expect(mockCtx.reply).not.toHaveBeenCalled();
+      expect(mockCtx.sendChatAction).not.toHaveBeenCalled();
+
+      const saved = await em.fork().find(ChatMessage, { telegramUserId, content: '¿Hay alguien ahí?' });
+      expect(saved).toHaveLength(1);
+      expect(saved[0].role).toBe(MessageRole.USER);
+    });
   });
 });
